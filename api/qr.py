@@ -17,6 +17,6 @@ def generar_qr(data):
     path = os.path.join(TMP_IMAGES, file_name)
 
     qr = segno.make_qr(data, error='h')
-    qr.save(path, scale=15, dark="#003610", light="#ffffff")
+    qr.save(path, scale=45, dark="#003610", light="#ffffff")
     return path
 
