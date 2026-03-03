@@ -61,6 +61,7 @@ class StudentBase(BaseModel):
     names: Optional[str] = None
     lastnames: Optional[str] = None
     nit: Optional[str] = None
+    phone: Optional[str] = None
     parqueo_id: Optional[int] = None
 
 class StudentCreate(StudentBase):

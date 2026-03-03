@@ -229,6 +229,7 @@ function initRegistrationForm() {
                 names: data.names,
                 lastnames: data.lastnames,
                 nit: data.nit,
+                phone: data.phone,
                 parqueo_id: parseInt(data.parqueo_id)
             };
 
@@ -412,6 +413,17 @@ function resetForNextScanner() {
     document.getElementById("invoice-details-scanner").style.display = "none";
     isProcessing_Asistencia = false;
     currentScanId = null;
+    
+    // Clear all textual fields
+    document.getElementById("scanResultName-scanner").textContent = "";
+    document.getElementById("inv-nit").textContent = "-";
+    document.getElementById("inv-entry").textContent = "-";
+    document.getElementById("inv-exit").textContent = "-";
+    
+    const totalEl = document.getElementById("inv-total");
+    totalEl.textContent = "Q0.00";
+    totalEl.style.color = ""; // Reset color
+    
     startScannerPagos(); 
 }
 
@@ -432,6 +444,13 @@ async function confirmCurrentPayment() {
             document.getElementById("inv-total").textContent = `Q${data.total.toFixed(2)} [PAGADO]`;
             
             updateDashboardStats();
+
+            // Auto-reset after 1.5 seconds
+            setTimeout(() => {
+                if (currentScanId === data.student_id) { // Solo si no han escaneado a alguien más (seguridad)
+                    resetForNextScanner();
+                }
+            }, 1500);
         } catch (err) {
             alert(err.message);
         }

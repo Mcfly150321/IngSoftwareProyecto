@@ -23,7 +23,12 @@ from .border import photo_rounded
 from .hash import hashear_carnet
 from .cloudinarylogic import subir_imagen
 
+def get_now_gt():
+    """Retorna la hora actual en UTC-6 (Guatemala) como datetime ingenua."""
+    return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-6))).replace(tzinfo=None)
 
+
+import webbrowser
 
 
 from fastapi.staticfiles import StaticFiles
@@ -118,13 +123,14 @@ async def create_student(
         names=client.names,
         lastnames=client.lastnames,
         nit=client.nit,
+        phone=client.phone,
         parqueo_id=client.parqueo_id,
-        is_created=datetime.datetime.now()
+        is_created=get_now_gt()
     )
     db_student.idclient = f"2026{str(random.randint(100000, 999999))}"
     db_student.hash_carnet = hashear_carnet(db_student.idclient) 
-    db_student.registration_date = datetime.datetime.now().strftime("%Y-%m")
-    db_student.is_created = datetime.datetime.now()
+    db_student.registration_date = get_now_gt().strftime("%Y-%m")
+    db_student.is_created = get_now_gt()
     db.add(db_student)
     db.commit()
     db.refresh(db_student)
@@ -146,7 +152,9 @@ async def create_student(
         # --- SUBIR PDF A CLOUDINARY ---
         pdf_cloudinary_url = subir_imagen(pdf_path)
         db_student.carnet_pdf_url = pdf_cloudinary_url
-        
+
+        waMessage = encodeURIComponent(f"Hola, Aca tienes tu Ticket de Parqueo:\n{pdf_cloudinary_url}");
+        webbrowser.open(f"https://wa.me/502{client.phone}?text={waMessage}")
         db.commit()
         print(f"DEBUG: PDF subido a Cloudinary para {db_student.idclient}")
 
@@ -342,6 +350,11 @@ async def update_student(
         # --- SUBIR PDF A CLOUDINARY ---
         pdf_cloudinary_url = subir_imagen(pdf_path)
         db_student.carnet_pdf_url = pdf_cloudinary_url
+        # URL que deseas abrir
+        url = 'https://www.google.com'
+
+        # Ejecutar el enlace en el navegador predeterminado
+        webbrowser.open(url)
         db.commit()
         print(f"DEBUG: PDF actualizado y subido para {db_student.idclient}")
 
@@ -382,12 +395,14 @@ def close_payment(student_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Missing entry or exit time for calculation")
 
     # Calcular costo según dos tarifas:
-    # Por cada hora tarifa2 de la tabla tarifas
-    # Fraccion superior a 15 min paga tarifa 1
+    # Por cada 5 minutos cobramos tarifa2
+    # Fraccion superior a 2 min paga tarifa 1 adicional
     duration = payment.lastscanhour - client.is_created
-    seconds = duration.total_seconds()
-    hours = int(seconds // 3600)
-    remaining_minutes = (seconds % 3600) / 60
+    seconds = int(duration.total_seconds())
+    
+    # Ciclo de 5 minutos (300 segundos)
+    ciclos_5min = seconds // 300
+    minutos_restantes = (seconds % 300) / 60
     
     # Buscar tarifas en DB
     t1 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa1").first()
@@ -396,8 +411,8 @@ def close_payment(student_id: str, db: Session = Depends(get_db)):
     cost1 = t1.costo if t1 else 5.0  # Fallback
     cost2 = t2.costo if t2 else 10.0 # Fallback
     
-    total_calc = hours * cost2
-    if remaining_minutes > 15:
+    total_calc = ciclos_5min * cost2
+    if minutos_restantes > 2:
         total_calc += cost1
         
     payment.total = total_calc
@@ -527,7 +542,7 @@ async def get_stats(db: Session = Depends(get_db)):
         charts_data["values"].append(round(percent, 1))
 
     # Format datetime (Guatemala)
-    now_gt = datetime.datetime.now()
+    now_gt = get_now_gt()
     server_datetime = now_gt.strftime("%d/%m/%Y %I:%M:%S %p")
 
     return {
@@ -1327,23 +1342,25 @@ def update_attendance(
         # Si no existe, lo creamos (esto registra la "hora de salida" actual)
         record = models.Payment(
             student_id=Client.idclient,
-            lastscanhour=datetime.datetime.now(),
+            lastscanhour=get_now_gt(),
             is_paid=False
         )
         db.add(record)
     else:
         # Si ya existía, actualizamos la hora de salida (último scan)
-        record.lastscanhour = datetime.datetime.now()
+        record.lastscanhour = get_now_gt()
         
     # Calcular costo según dos tarifas:
-    # Por cada hora tarifa2 de la tabla tarifas
-    # Fraccion superior a 15 min paga tarifa 1
+    # Por cada 5 minutos cobramos tarifa2
+    # Fraccion superior a 2 min paga tarifa 1 adicional
     total_calc = 0.0
     if Client.is_created and record.lastscanhour:
         duration = record.lastscanhour - Client.is_created
-        seconds = duration.total_seconds()
-        hours = int(seconds // 3600)
-        remaining_minutes = (seconds % 3600) / 60
+        seconds = int(duration.total_seconds())
+        
+        # Ciclo de 5 minutos (300 segundos)
+        ciclos_5min = seconds // 300
+        minutos_restantes = (seconds % 300) / 60
         
         # Buscar tarifas en DB
         t1 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa1").first()
@@ -1352,8 +1369,8 @@ def update_attendance(
         cost1 = t1.costo if t1 else 5.0  # Fallback
         cost2 = t2.costo if t2 else 10.0 # Fallback
         
-        total_calc = hours * cost2
-        if remaining_minutes > 15:
+        total_calc = ciclos_5min * cost2
+        if minutos_restantes > 2:
             total_calc += cost1
             
         record.total = total_calc
