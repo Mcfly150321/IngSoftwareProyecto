@@ -146,8 +146,7 @@ async def create_student(
     os.makedirs(tmp_images_dir, exist_ok=True)
 
     try:
-        hash_qr = db_student.hash_carnet
-        qr_path = generar_qr(hash_qr)
+        qr_path = generar_qr(db_student.idclient)
         pdf_path = generar_pdf(db_student.idclient, qr_path)
         img_path = generar_imgticket(db_student.idclient, qr_path)
         
