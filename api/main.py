@@ -341,6 +341,127 @@ def login(datos: LoginData, request: Request):
             status_code=401,
             detail=f"Error al verificar credenciales: {str(e)}"
         )
+@router.get("/scanner/clients-attendance/")
+def get_students_attendance(
+    plan: str,
+    date: date,
+    db: Session = Depends(get_db)
+):
+    if plan not in ["diario", "fin_de_semana", "ejecutivo"]:
+        raise HTTPException(status_code=400, detail="Plan inválido")
+
+    # Obtener alumnas activas del plan
+    clients = db.query(models.Client).filter(
+        models.Client.plan == plan,
+        models.Client.is_active.is_(True),
+        models.Client.is_graduated.is_(False)
+    ).order_by(models.Client.names).all()
+
+    result = []
+    for s in clients:
+        # Verificar estado de asistencia para la fecha
+        attendance_record = db.query(models.Assistance).filter(
+            models.Assistance.student_id == s.idclient,
+            models.Assistance.date == date
+        ).first()
+
+        is_present = attendance_record.assistance if attendance_record else False
+
+        result.append({
+            "idclient": s.idclient,
+            "names": s.names,
+            "lastnames": s.lastnames,
+            # Photo removed
+            "is_present": is_present
+        })
+
+    return result
+
+@router.post("/assistance/{identifier}")
+def update_attendance(
+    identifier: str,
+    date: date,
+    action: str = Query("take", enum=["take", "delete"]),
+    db: Session = Depends(get_db)
+):
+    # Buscar a la alumna por su hash_carnet O por su idclient directamente (manual)
+    Client = db.query(models.Client).filter(
+        or_(
+            models.Client.hash_carnet == identifier,
+            models.Client.idclient == identifier
+        )
+    ).first()
+
+    if not Client:
+        raise HTTPException(
+            status_code=404, 
+            detail="Identificador no reconocido o vehiculo no encontrado"
+        )
+
+    if Client.is_paid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El vehiculo {Client.idclient} ya ha realizado su pago de salida"
+        )
+
+    # En lugar de Assistance, usamos la lógica de Payment para "Salida" (Checkout)
+    # Buscamos un registro de pago pendiente para este cliente
+    record = db.query(models.Payment).filter(
+        models.Payment.student_id == Client.idclient,
+        models.Payment.is_paid == False
+    ).first()
+
+    if not record:
+        # Si no existe, lo creamos (esto registra la "hora de salida" actual)
+        record = models.Payment(
+            student_id=Client.idclient,
+            lastscanhour=get_now_gt(),
+            is_paid=False
+        )
+        db.add(record)
+    else:
+        # Si ya existía, actualizamos la hora de salida (último scan)
+        record.lastscanhour = get_now_gt()
+        
+    # Calcular costo según dos tarifas:
+    # Por cada 5 minutos cobramos tarifa2
+    # Fraccion superior a 2 min paga tarifa 1 adicional
+    total_calc = 0.0
+    if Client.is_created and record.lastscanhour:
+        duration = record.lastscanhour - Client.is_created
+        seconds = int(duration.total_seconds())
+        
+        # Ciclo de 5 minutos (300 segundos)
+        ciclos_5min = seconds // 300
+        minutos_restantes = (seconds % 300) / 60
+        
+        # Buscar tarifas en DB
+        t1 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa1").first()
+        t2 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa2").first()
+        
+        cost1 = t1.costo if t1 else 5.0  # Fallback
+        cost2 = t2.costo if t2 else 10.0 # Fallback
+        
+        total_calc = ciclos_5min * cost2
+        if minutos_restantes > 2:
+            total_calc += cost1
+            
+        record.total = total_calc
+    else:
+        total_calc = 0.0
+
+    db.commit()
+    
+    return {
+        "status": "ok",
+        "student_id": Client.idclient,
+        "client_name": Client.names if Client.names else "Consumidor Final",
+        "client_nit": Client.nit if Client.nit else "C/F",
+        "lastscanhour": record.lastscanhour.isoformat(),
+        "entry_time": Client.is_created.isoformat() if Client.is_created else None,
+        "duration_minutes": total_calc, 
+        "total": total_calc
+    }
 
 
 
