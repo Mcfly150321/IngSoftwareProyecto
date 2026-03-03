@@ -235,38 +235,49 @@ function initRegistrationForm() {
 
             const url = `${API_URL}/clients/`;
 
-            try {
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(clientData)
-                });
-                
-                if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(errorData.detail || "Error al guardar registro");
-                }
-                
-                const result = await res.json();
-                alert(`Ticket generado: ${result.idclient}`);
-                
-                // Si viene URL de PDF, abrirlo
-                if (result.carnet_pdf_url) {
-                    window.open(result.carnet_pdf_url, '_blank');
-                }
+try {
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(clientData)
+    });
+    
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || "Error al guardar registro");
+    }
+    
+    const result = await res.json();
 
-                regForm.reset();
-                updateFormVisibility();
-                updateDashboardStats();
-            } catch (err) {
-                alert(`Error: ${err.message}`);
-            }
+    // 1. Mostramos el mensaje. El navegador se detiene aquí hasta que den "Aceptar".
+    alert(`Ticket generado: ${result.idclient}`);
+    
+    // 2. Al dar clic en "OK", ejecutamos las aperturas de URL:
+    
+    // Abrir WhatsApp (Prioridad)
+    if (result.whatsapp_url) {
+        window.open(result.whatsapp_url, '_blank');
+    }
+
+    // Abrir el PDF (Opcional, ya que el link va en el WhatsApp)
+    if (result.carnet_pdf_url) {
+        // Nota: Algunos navegadores podrían bloquear esta segunda ventana emergente
+        window.open(result.carnet_pdf_url, '_blank');
+    }
+
+    // 3. Limpiar formulario y actualizar vista
+    regForm.reset();
+    updateFormVisibility();
+    updateDashboardStats();
+
+} catch (err) {
+    alert(`Error: ${err.message}`);
+}
         });
     });
 
     updateFormVisibility();
 }
-
 /**
  * SECCION: PAGOS (ESCÁNER DE SALIDA)
  */

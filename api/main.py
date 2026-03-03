@@ -153,8 +153,12 @@ async def create_student(
         pdf_cloudinary_url = subir_imagen(pdf_path)
         db_student.carnet_pdf_url = pdf_cloudinary_url
 
+        # Codificamos el mensaje para que sea seguro en una URL (espacios -> %20, etc.)
         waMessage = f"Hola, Aca tienes tu Ticket de Parqueo:\n{pdf_cloudinary_url}"
-        webbrowser.open(f"https://wa.me/502{client.phone}?text={waMessage}")
+        mensaje_limpio = urllib.parse.quote(waMessage)
+
+        # Esta es la URL final que el frontend usará
+        url = f"https://wa.me/502{client.phone}?text={mensaje_limpio}"
         db.commit()
         print(f"DEBUG: PDF subido a Cloudinary para {db_student.idclient}")
 
@@ -189,8 +193,13 @@ async def create_student(
     #esto para agregar estudiante a modulos
     
 
-    return db_student
-
+    return {
+        "idclient": db_student.idclient,
+        "names": db_student.names,
+        "lastnames": db_student.lastnames,
+        "carnet_pdf_url": pdf_cloudinary_url,
+        "whatsapp_url": url  # <--- Aquí va la URL para el frontend
+    }
 
 @router.get("/clients/", response_model=list[schemas.StudentSchema])
 def read_students(status: str = "active", db: Session = Depends(get_db)):
