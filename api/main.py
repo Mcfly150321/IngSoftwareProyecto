@@ -1116,6 +1116,13 @@ def login(datos: LoginData, request: Request):
 
     # Comparar password con hash
     try:
+        # Log para depuración (¡No imprimir el hash completo ni el password en producción!)
+        print(f"DEBUG: Intentando login para usuario: {datos.username}")
+        if not admin_password_hash:
+            print("DEBUG: admin_password_hash es None o vacío")
+        else:
+            print(f"DEBUG: admin_password_hash cargado (empieza con {admin_password_hash[:10]}...)")
+            
         ph.verify(admin_password_hash, datos.password)
         
         # ✅ Login exitoso: Seteamos la sesión firmada
@@ -1135,10 +1142,13 @@ def login(datos: LoginData, request: Request):
         )
     except Exception as e:
         # Cualquier otro error (ej: hash malformado)
-        print(f"Login error: {str(e)}")
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Login error detail: {str(e)}")
+        print(f"Full traceback: {error_trace}")
         raise HTTPException(
             status_code=401,
-            detail="Error al verificar credenciales"
+            detail=f"Error al verificar credenciales: {str(e)}"
         )
 
 @router.post("/assistance/finish")
