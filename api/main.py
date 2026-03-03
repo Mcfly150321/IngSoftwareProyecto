@@ -156,7 +156,8 @@ async def create_student(
         db_student.carnet_img_url = img_cloudinary_url
 
         # MENSAJE DE WHATSAPP (Aquí ya no fallará porque importamos urllib)
-        waMessage = f"Hola, Aca tienes tu Ticket de Parqueo:\n{img_cloudinary_url}"
+        nombremensaje = client.names.strip().split()[0]
+        waMessage = f"Hola, {nombremensaje} Aca tienes tu Ticket de Parqueo:\n{img_cloudinary_url}"
         mensaje_limpio = urllib.parse.quote(waMessage)
         url = f"https://wa.me/502{client.phone}?text={mensaje_limpio}"
         
