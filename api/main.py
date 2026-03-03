@@ -22,6 +22,7 @@ from .pdf import generar_pdf
 from .qr import generar_qr
 from .border import photo_rounded
 from .hash import hashear_carnet
+from .imagenticket import generar_imgticket
 from .cloudinarylogic import subir_imagen
 
 def get_now_gt():
@@ -149,12 +150,13 @@ async def create_student(
         qr_path = generar_qr(hash_qr)
         qr_rounded = photo_rounded(qr_path)
         pdf_path = generar_pdf(db_student.idclient, qr_rounded)
+        img_path = generar_imgticket(db_student.idclient, qr_rounded)
         
-        pdf_cloudinary_url = subir_imagen(pdf_path)
-        db_student.carnet_pdf_url = pdf_cloudinary_url
+        img_cloudinary_url = subir_imagen(img_path)
+        db_student.carnet_img_url = img_cloudinary_url
 
         # MENSAJE DE WHATSAPP (Aquí ya no fallará porque importamos urllib)
-        waMessage = f"Hola, Aca tienes tu Ticket de Parqueo:\n{pdf_cloudinary_url}"
+        waMessage = f"Hola, Aca tienes tu Ticket de Parqueo:\n{img_cloudinary_url}"
         mensaje_limpio = urllib.parse.quote(waMessage)
         url = f"https://wa.me/502{client.phone}?text={mensaje_limpio}"
         
