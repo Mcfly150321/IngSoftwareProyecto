@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Sistema Academia</title>
+    <link rel="icon" type="image/x-icon" href="/assets/logo_academia.ico">
+    <link rel="apple-touch-icon" href="/assets/logo_academia.ico">
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/a076d15392.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-graduation-cap"></i>
+                <span>Crea Imagen</span>
+            </div>
+            <nav>
+                <a href="#" class="nav-link active" data-target="dashboard">
+                    <i class="fas fa-th-large"></i> Dashboard
+                </a>
+                <a href="#" class="nav-link" data-target="inscripcion">
+                    <i class="fas fa-user-plus"></i> Registro
+                </a>
+                <a href="#" class="nav-link" data-target="pagos">
+                    <i class="fas fa-check"></i> Pagos
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <h1 id="page-title">Dashboard Parqueo</h1>
+                <div class="user-info">
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+                        <div class="conn-container" id="conn-monitor" title="Estado de la conexión">
+                            <div class="conn-dot" id="conn-dot"></div>
+                            <span class="conn-text" id="conn-text">Conectando...</span>
+                        </div>
+                        <span id="server-datetime" style="font-size: 12px; color: #64748b;"></span>
+                    </div>
+                    <img src="/assets/logo_academia.png" >
+                    <button onclick="logout()" class="btnSession">Cerrar Sesión</button>
+                </div>
+            </header>
+
+            <!-- Sections -->
+            <section id="dashboard" class="content-section active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Clientes Activos</h3>
+                        <p class="stat-number" id="stat-clients">0</p>
+                    </div>
+                </div>
+                
+                <!-- Gráficos de Asistencia (Ancho completo) -->
+                <div style="display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 20px;">
+                    <div class="card" style="grid-column: 1 / -1; display: flex; flex-direction: column;">
+                        <h2 style="font-size: 1.2rem; color: var(--text-dark); margin-bottom: 15px;">📊 Llenado Parqueo 1</h2>
+                        <div style="width: 100%; overflow-x: auto; overflow-y: hidden;">
+                            <div id="wrapper-chart-diario" style="position: relative; height: 350px; min-width: 100%;">
+                                <canvas id="chart-diario"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card" style="grid-column: 1 / -1; display: flex; flex-direction: column;">
+                        <h2 style="font-size: 1.2rem; color: var(--text-dark); margin-bottom: 15px;">📊 Llenado Parqueo 2</h2>
+                        <div style="width: 100%; overflow-x: auto; overflow-y: hidden;">
+                            <div id="wrapper-chart-finde" style="position: relative; height: 350px; min-width: 100%;">
+                                <canvas id="chart-finde"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Inscripcion Section -->
+            <section id="inscripcion" class="content-section">
+                <div class="card">
+                    <h2 id="inscripcion-title">Nuevo Ticket</h2>
+
+                    <label>
+                        <input type="checkbox" id="mostrarFormCF" checked> C/F
+                    </label>
+
+                    <label>
+                        <input type="checkbox" id="mostrarFormCliente"> Datos Cliente
+                    </label>
+
+                    <form id="registration-form">
+                        <input type="hidden" id="edit-idclient" name="idclient">
+                        <div class="form-grid">
+                            <!-- Contenedor toggleable para datos del cliente -->
+                            <div id="cliente-data-container" style="display: contents;">
+                                <div class="form-group">
+                                    <label for="names">Nombres</label>
+                                    <input type="text" id="names" name="names" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="lastnames">Apellidos</label>
+                                    <input type="text" id="lastnames" name="lastnames" required>
+                                </div>
+                                <div class="form-group" id="group-nit">
+                                    <label>NIT</label>
+                                    <input type="number" id="nit" name="nit" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="parking">Parqueo</label>
+                                <select id="parking" name="parqueo_id" required>
+                                    <option value="">Cargando parqueos...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="margin-top: 20px; display: flex; gap: 10px;">
+                            <button type="submit" class="btn-primary" id="submit-Client-btn">Ingresar Persona</button>
+                            <button type="button" class="btn-secondary" id="cancel-edit-btn" style="display: none;">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+
+            <!-- Pagos Section -->
+            <section id="pagos" class="content-section">
+
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h2>🗓️ Control de Salida / Pagos</h2>
+                        <span id="server-date" style="font-size: 14px; font-weight: 600; color: var(--text-muted); background: var(--bg-main); padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);">Cargando fecha...</span>
+                    </div>
+                    <div id="initMessage-scanner" style="margin-top: 1rem;"></div>
+                </div>
+
+                <!-- Paso 2: Escaneo -->
+                <div class="card" id="markingSection-scanner">
+                    <h2 style="margin-bottom: 1.5rem;">📷 Registro por QR</h2>
+
+                    <div id="scannerWrapper-scanner">
+                        <div id="reader-scanner"></div>
+
+                        <!-- Overlay de resultado (Éxito o Error) -->
+                        <div id="resultOverlay-scanner">
+                            <div class="result-container-scanner">
+                                <!-- Círculo de Éxito -->
+                                <div id="successCircle-scanner" class="icon-circle-scanner success-bg-scanner">
+                                    <svg class="icon-svg-scanner" viewBox="0 0 52 52">
+                                        <circle cx="26" cy="26" r="25" fill="none"/>
+                                        <path class="checkmark-path-scanner" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                                    </svg>
+                                </div>
+
+                                <!-- Círculo de Error -->
+                                <div id="errorCircle-scanner" class="icon-circle-scanner error-bg-scanner" style="display:none;">
+                                    <svg class="icon-svg-scanner" viewBox="0 0 52 52">
+                                        <circle cx="26" cy="26" r="25" fill="none"/>
+                                        <path class="error-x-path1-scanner" fill="none" d="M16 16l20 20"/>
+                                        <path class="error-x-path2-scanner" fill="none" d="M36 16l-20 20"/>
+                                    </svg>
+                                </div>
+
+                                <div id="scanResultName-scanner" class="result-name-scanner"></div>
+                                
+                                <!-- Invoice Details -->
+                                <div id="invoice-details-scanner" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 10px; border: 1px solid #e2e8f0; margin: 1rem 0; width: 100%; text-align: left;">
+                                    <p style="font-size: 14px; margin: 5px 0;"><strong>NIT:</strong> <span id="inv-nit"></span></p>
+                                    <p style="font-size: 14px; margin: 5px 0;"><strong>Entrada:</strong> <span id="inv-entry"></span></p>
+                                    <p style="font-size: 14px; margin: 5px 0;"><strong>Salida:</strong> <span id="inv-exit"></span></p>
+                                    <hr style="margin: 10px 0; border: none; border-top: 1px dashed #cbd5e1;">
+                                    <p style="font-size: 18px; font-weight: 800; color: #1e293b; margin: 0; display: flex; justify-content: space-between;">
+                                        <span>TOTAL:</span> <span id="inv-total" style="color: #10b981;">Q0.00</span>
+                                    </p>
+                                </div>
+
+                                <button id="btnNext-scanner" class="next-btn-scanner" onclick="resetForNextScanner()">Siguiente Persona (Scan Exit)</button>
+                                <button id="btnConfirmPay-scanner" class="btn-primary" style="display: none; background-color: #10b981; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; width: 100%; margin-top: 10px;" onclick="confirmCurrentPayment()">💰 Procesar Pago</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; margin-top: 1rem; flex-wrap: wrap;">
+                        <button id="btnStartScanner-scanner" class="btn-primary" onclick="startScannerPagos()">📸 Abrir Escáner</button>
+                        <button id="btnStopScanner-scanner" class="btn-primary" style="display:none; background-color:#ef4444;" onclick="stopScannerExplicitScanner()">⏹ Cerrar Cámara</button>
+                    </div>
+
+                    <div id="message-scanner" style="margin-top: 1rem;"></div>
+
+                    <!-- Registros recientes -->
+                    <div class="recent-scans-wrapper-scanner">
+                        <h4 class="recent-scans-title-scanner">Listado de Salidas Escaneadas</h4>
+                        <div id="recentScansContainer-scanner"></div>
+                    </div>
+                </div>
+
+            </section>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

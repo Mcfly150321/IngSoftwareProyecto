@@ -1,0 +1,62 @@
+{
+  "builds": [
+    {
+      "src": "api/main.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "css/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "js/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "assets/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "api/main.py"
+    },
+    {
+      "src": "/docs",
+      "dest": "api/main.py"
+    },
+    {
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/assets/logo_academia.ico"
+    },
+    {
+      "src": "/favicon.png",
+      "dest": "/assets/logo_academia.ico"
+    },
+    {
+      "src": "/(index.html)?",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/dashboard",
+      "dest": "api/main.py"
+    },
+    {
+      "src": "/logout",
+      "dest": "api/main.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ]
+}

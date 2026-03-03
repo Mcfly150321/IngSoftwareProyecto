@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="icon" type="image/x-icon" href="/assets/logo_academia.ico">
+    <link rel="apple-touch-icon" href="/assets/logo_academia.ico">
+    <link rel="stylesheet" href="css/stylelogin.css?v=2">
+</head>
+<body>
+    <div class="container">
+        <h2>Login</h2>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('login')">Login</button>
+        </div>
+        
+        <!-- Login -->
+        <div id="login-form" class="form-content active">
+            <form id="formLogin" autocomplete="on">
+                <div class="form-group">
+                    <label>Usuario</label>
+                    <input type="text" id="login-username" required autocomplete="username">
+                </div>
+                
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="login-password" required autocomplete="current-password">
+                </div>
+
+                <div class="form-group show-password-group">
+                    <input type="checkbox" id="show-password">
+                    <label for="show-password">Mostrar contraseña</label>
+                </div>
+                
+                <button type="submit">Iniciar Sesión</button>
+                
+                <div id="login-mensaje" class="mensaje"></div>
+                
+                <div id="loader-container" class="loader-container">
+                    <div class="loader">
+                        <div class="loader-inner">
+                            <div class="loader-block"></div>
+                            <div class="loader-block"></div>
+                            <div class="loader-block"></div>
+                            <div class="loader-block"></div>
+                            <div class="loader-block"></div>
+                            <div class="loader-block"></div>
+                            <div class="loader-block"></div>
+                            <div class="loader-block"></div>
+                        </div>
+                    </div>
+                    <span class="verificando-text">Verificando usuario <br> 
+                        (Esto podria demorar si tu internet es lento)</span>
+                </div>
+            </form>
+        </div>
+
+    </div>
+
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="water-logo-container">
+            <div class="logo-wrapper">
+                <!-- SVG de fondo (gris claro) -->
+                <img src="/assets/file.svg" class="logo-bg" alt="Logo Background">
+                <!-- SVG que se llena (color esmeralda) -->
+                <div class="water-fill" id="water-fill">
+                    <img src="/assets/file.svg" class="logo-front" alt="Logo Front">
+                </div>
+            </div>
+            <h1 id="welcome-text">Bienvenida</h1>
+        </div>
+    </div>
+
+    <script src="/js/applogin.js"></script>
+</body>
+
+</html>
