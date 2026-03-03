@@ -52,6 +52,13 @@ app.add_middleware(
 # Initialize Database
 init_db()
 
+# Dependency to get the database session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 @router.get("/ping")
 def ping():
@@ -95,7 +102,7 @@ async def create_student(
 
         # MENSAJE DE WHATSAPP (Aquí ya no fallará porque importamos urllib)
         nombremensaje = client.names.strip().split()[0]
-        waMessage = f"Hola, {nombremensaje} Aca tienes tu Ticket de Parqueo:\n{img_cloudinary_url}"
+        waMessage = f"Hola, {nombremensaje} \n Aca tienes tu Ticket de Parqueo:\n{img_cloudinary_url}"
         mensaje_limpio = urllib.parse.quote(waMessage)
         url = f"https://wa.me/502{client.phone}?text={mensaje_limpio}"
         
