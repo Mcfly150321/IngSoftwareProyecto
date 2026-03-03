@@ -198,7 +198,7 @@ async def create_student(
         "names": db_student.names,
         "lastnames": db_student.lastnames,
         "carnet_pdf_url": pdf_cloudinary_url,
-        "whatsapp_url": url  # <--- Aquí va la URL para el frontend
+        "url": url  # <--- Aquí va la URL para el frontend
     }
 
 @router.get("/clients/", response_model=list[schemas.StudentSchema])
