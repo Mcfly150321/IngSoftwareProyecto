@@ -153,7 +153,7 @@ async def create_student(
         pdf_cloudinary_url = subir_imagen(pdf_path)
         db_student.carnet_pdf_url = pdf_cloudinary_url
 
-        waMessage = encodeURIComponent(f"Hola, Aca tienes tu Ticket de Parqueo:\n{pdf_cloudinary_url}");
+        waMessage = f"Hola, Aca tienes tu Ticket de Parqueo:\n{pdf_cloudinary_url}"
         webbrowser.open(f"https://wa.me/502{client.phone}?text={waMessage}")
         db.commit()
         print(f"DEBUG: PDF subido a Cloudinary para {db_student.idclient}")
