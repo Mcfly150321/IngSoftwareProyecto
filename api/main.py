@@ -147,9 +147,7 @@ async def create_student(
 
     try:
         qr_path = generar_qr(db_student.idclient)
-        pdf_path = generar_pdf(db_student.idclient, qr_path)
         img_path = generar_imgticket(db_student.idclient, qr_path)
-        
         img_cloudinary_url = subir_imagen(img_path)
         db_student.carnet_img_url = img_cloudinary_url
 
