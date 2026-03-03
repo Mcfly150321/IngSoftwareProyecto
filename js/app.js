@@ -255,8 +255,8 @@ try {
     // 2. Al dar clic en "OK", ejecutamos las aperturas de URL:
     
     // Abrir WhatsApp (Prioridad)
-    if (result.whatsapp_url) {
-        window.open(result.whatsapp_url, '_blank');
+    if (result.url) {
+        window.open(result.url, '_blank');
     }
 
     // Abrir el PDF (Opcional, ya que el link va en el WhatsApp)
