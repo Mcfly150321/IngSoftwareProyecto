@@ -27,7 +27,6 @@ class Client(Base):
     
     parqueo_id = Column(Integer, ForeignKey("parqueos.id"))
     
-    photo_url = Column(String, nullable=True)
     hash_carnet = Column(String, index=True)
     registration_date = Column(String, nullable=True)
     carnet_pdf_url = Column(String, nullable=True)

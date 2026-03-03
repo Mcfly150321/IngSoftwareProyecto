@@ -142,7 +142,6 @@ class WorkshopStudentSchema(BaseModel):
     idclient: str 
     names: str
     lastnames: str
-    photo_url: Optional[str] = None
     is_active: bool = True
     workshop_paid: bool
     package_paid: bool

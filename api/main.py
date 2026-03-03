@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, APIRouter, Request, File, Form, UploadFile
+from fastapi import FastAPI, Depends, HTTPException, Query, APIRouter, Request
 import json
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -110,36 +110,15 @@ def ping():
 
 @router.post("/clients/", response_model=schemas.StudentSchema)
 async def create_student(
-    student_data: str = Form(...), 
-    photo: Optional[UploadFile] = File(None),
+    client: schemas.StudentCreate,
     db: Session = Depends(get_db)
 ):
-    # PARSEO DE DATOS
-    data = json.loads(student_data)
-    Client = schemas.StudentCreate(**data)
-
-    # --- LÓGICA DE RECEPCIÓN DE IMAGEN ---
-    # La variable 'photo' es de tipo UploadFile.
-    # Puedes usar 'await photo.read()' para obtener los bytes originales.
-    if photo:
-        # Validar tipo de archivo
-        allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
-        if photo.content_type not in allowed_types:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Tipo de archivo no soportado: {photo.content_type}. Use JPG, PNG o WEBP."
-            )
-        
-        photo_bytes = await photo.read()
-        print(f"DEBUG: Foto recibida para nueva alumna. Tamaño: {len(photo_bytes)} bytes. Tipo: {photo.content_type}")
-        # La variable 'photo_bytes' contiene la "carne" de la foto para tus operaciones.
-    # ---------------------------------------
 
     db_student = models.Client(
-        names=Client.names,
-        lastnames=Client.lastnames,
-        nit=Client.nit,
-        parqueo_id=Client.parqueo_id,
+        names=client.names,
+        lastnames=client.lastnames,
+        nit=client.nit,
+        parqueo_id=client.parqueo_id,
         is_created=datetime.datetime.now()
     )
     db_student.idclient = f"2026{str(random.randint(100000, 999999))}"
@@ -161,25 +140,8 @@ async def create_student(
         qr_path = generar_qr(hash_qr)
         qr_rounded = photo_rounded(qr_path)
 
-        # 2. FOTO (Solo si el usuario la mandó)
-        image_rounded = None
-        if photo:
-            # Guardamos los bytes en un archivo temporal para que photo_rounded pueda leerlo
-            temp_photo_path = os.path.join(tmp_images_dir, f"temp_{db_student.idclient}.jpg")
-
-            with open(temp_photo_path, "wb") as f:
-                f.write(photo_bytes)
-
-            photo_cloudinary_url = subir_imagen(temp_photo_path)
-            db_student.photo_url = photo_cloudinary_url
-            
-            # Generar versión redondeada para el carnet
-            image_rounded = photo_rounded(temp_photo_path)
-            print(f"DEBUG: Foto subida para {db_student.idclient}")
-
-        # 3. GENERAR PDF (Siempre se genera, con o sin foto)
-        # pdf.py: generar_pdf(idclient, qr_path, foto_path=None, desplazamiento=0.0)
-        pdf_path = generar_pdf(db_student.idclient, qr_rounded, image_rounded)
+        # 3. GENERAR PDF (Sin foto)
+        pdf_path = generar_pdf(db_student.idclient, qr_rounded)
         
         # --- SUBIR PDF A CLOUDINARY ---
         pdf_cloudinary_url = subir_imagen(pdf_path)
@@ -188,7 +150,7 @@ async def create_student(
         db.commit()
         print(f"DEBUG: PDF subido a Cloudinary para {db_student.idclient}")
 
-        # 4. AGREGAR A MODULOS (Independiente de si hay foto)
+        # 4. AGREGAR A MODULOS
         for module_name in MODULES_LIST:
             exists = db.query(models.Modulos).filter(
                 models.Modulos.student_id == db_student.idclient,
@@ -204,11 +166,8 @@ async def create_student(
                 ))
         db.commit()
 
-        # 5. LIMPIEZA DE ARCHIVOS TEMPORALES (Evitar llenar /tmp)
-        # Recolectamos todos los archivos creados para borrar
-        archivos_a_borrar = [qr_path, qr_rounded]
-        if photo:
-            archivos_a_borrar.extend([temp_photo_path, image_rounded, pdf_path])
+        # 5. LIMPIEZA
+        archivos_a_borrar = [qr_path, qr_rounded, pdf_path]
         
         for p in archivos_a_borrar:
             try:
@@ -341,50 +300,25 @@ def deactivate_student(idclient: str, db: Session = Depends(get_db)):
 @router.put("/clients/{idclient}", response_model=schemas.StudentSchema)
 async def update_student(
     idclient: str, 
-    student_data: str = Form(...), 
-    photo: Optional[UploadFile] = File(None),
+    student_data: schemas.StudentCreate,
     db: Session = Depends(get_db)
 ):
-    # PARSEO DE DATOS
-    data = json.loads(student_data)
-    student_obj = schemas.StudentCreate(**data)
-
     db_student = db.query(models.Client).filter(models.Client.idclient == idclient).first()
     if not db_student:
         raise HTTPException(status_code=404, detail="Client not found")
-    
-    # --- LÓGICA DE RECEPCIÓN DE IMAGEN (EDICIÓN) ---
-    photo_bytes = None
-    if photo:
-        # Validar tipo de archivo
-        allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
-        if photo.content_type not in allowed_types:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Tipo de archivo no soportado: {photo.content_type}. Use JPG, PNG o WEBP."
-            )
-        await photo.seek(0)
-        photo_bytes = await photo.read()
-        photo_cloudinary_url = subir_imagen(photo_bytes)
-        print(f"DEBUG: Foto recibida para actualización de {idclient}. Tamaño: {len(photo_bytes)} bytes. Tipo: {photo.content_type}")
-    else:
-        print(f"DEBUG: No se recibió foto nueva para actualización de {idclient}")
-    # ------------------------------------------------
 
     # Update fields
-    db_student.names = student_obj.names
-    db_student.lastnames = student_obj.lastnames
-    db_student.age = student_obj.age
-    db_student.cui = student_obj.cui
-    db_student.phone = student_obj.phone
-    db_student.plan = student_obj.plan
-    db_student.is_adult = student_obj.is_adult
-    db_student.guardian1_name = student_obj.guardian1_name
-    db_student.guardian1_phone = student_obj.guardian1_phone
-    db_student.guardian2_name = student_obj.guardian2_name
-    db_student.guardian2_phone = student_obj.guardian2_phone
-    if photo_cloudinary_url:
-        db_student.photo_url = photo_cloudinary_url
+    db_student.names = student_data.names
+    db_student.lastnames = student_data.lastnames
+    db_student.age = student_data.age
+    db_student.cui = student_data.cui
+    db_student.phone = student_data.phone
+    db_student.plan = student_data.plan
+    db_student.is_adult = student_data.is_adult
+    db_student.guardian1_name = student_data.guardian1_name
+    db_student.guardian1_phone = student_data.guardian1_phone
+    db_student.guardian2_name = student_data.guardian2_name
+    db_student.guardian2_phone = student_data.guardian2_phone
     
     # Asegurar que tenga hash_carnet (por si era de registros viejos)
     if not db_student.hash_carnet:
@@ -402,18 +336,8 @@ async def update_student(
         qr_path = generar_qr(hash_qr)
         qr_rounded = photo_rounded(qr_path)
 
-        # 2. PROCESAR FOTO (Solo si mandaron una nueva)
-        image_rounded = None
-        if photo:
-            temp_photo_path = os.path.join(tmp_images_dir, f"update_temp_{db_student.idclient}.jpg")
-            with open(temp_photo_path, "wb") as f:
-                f.write(photo_bytes)
-            
-            image_rounded = photo_rounded(temp_photo_path)
-            print(f"DEBUG: Nueva foto procesada para {db_student.idclient}")
-
-        # 3. GENERAR NUEVO PDF
-        pdf_path = generar_pdf(db_student.idclient, qr_rounded, image_rounded)
+        # 3. GENERAR NUEVO PDF (Sin foto)
+        pdf_path = generar_pdf(db_student.idclient, qr_rounded)
         
         # --- SUBIR PDF A CLOUDINARY ---
         pdf_cloudinary_url = subir_imagen(pdf_path)
@@ -422,9 +346,7 @@ async def update_student(
         print(f"DEBUG: PDF actualizado y subido para {db_student.idclient}")
 
         # 5. LIMPIEZA
-        archivos_a_borrar = [qr_path, qr_rounded]
-        if photo:
-            archivos_a_borrar.extend([temp_photo_path, image_rounded, pdf_path])
+        archivos_a_borrar = [qr_path, qr_rounded, pdf_path]
         
         for p in archivos_a_borrar:
             try:
@@ -673,7 +595,7 @@ def get_workshop_students(workshop_id: int, db: Session = Depends(get_db)):
                 "idclient": student_data.idclient,
                 "names": student_data.names,
                 "lastnames": student_data.lastnames,
-                "photo_url": student_data.photo_url,
+                # Photo removed
                 "package_paid": s.package_paid,
                 "workshop_paid": s.workshop_paid,
                 "package_id": s.package_id
@@ -1360,7 +1282,7 @@ def get_students_attendance(
             "idclient": s.idclient,
             "names": s.names,
             "lastnames": s.lastnames,
-            "photo_url": s.photo_url,
+            # Photo removed
             "is_present": is_present
         })
 

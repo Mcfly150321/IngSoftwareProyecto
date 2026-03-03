@@ -220,9 +220,9 @@ function initRegistrationForm() {
             const data = Object.fromEntries(formData.entries());
 
             if (checkboxCF.checked) {
-                data.names = null;
-                data.lastnames = null;
-                data.nit = null;
+                data.names = "C/F";
+                data.lastnames = "C/F";
+                data.nit = "0";
             }
 
             const clientData = {
@@ -240,14 +240,25 @@ function initRegistrationForm() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(clientData)
                 });
-                if (!res.ok) throw new Error("Error al guardar registro");
                 
-                alert("Ticket generado exitosamente");
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.detail || "Error al guardar registro");
+                }
+                
+                const result = await res.json();
+                alert(`Ticket generado: ${result.idclient}`);
+                
+                // Si viene URL de PDF, abrirlo
+                if (result.carnet_pdf_url) {
+                    window.open(result.carnet_pdf_url, '_blank');
+                }
+
                 regForm.reset();
                 updateFormVisibility();
                 updateDashboardStats();
             } catch (err) {
-                alert(err.message);
+                alert(`Error: ${err.message}`);
             }
         });
     });
