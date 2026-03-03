@@ -148,9 +148,8 @@ async def create_student(
     try:
         hash_qr = db_student.hash_carnet
         qr_path = generar_qr(hash_qr)
-        qr_rounded = photo_rounded(qr_path)
-        pdf_path = generar_pdf(db_student.idclient, qr_rounded)
-        img_path = generar_imgticket(db_student.idclient, qr_rounded)
+        pdf_path = generar_pdf(db_student.idclient, qr_path)
+        img_path = generar_imgticket(db_student.idclient, qr_path)
         
         img_cloudinary_url = subir_imagen(img_path)
         db_student.carnet_img_url = img_cloudinary_url
