@@ -468,8 +468,8 @@ def close_payment(student_id: str, db: Session = Depends(get_db)):
     remaining_minutes = (seconds % 3600) / 60
     
     # Buscar tarifas en DB
-    t1 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa 1").first()
-    t2 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa 2").first()
+    t1 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa1").first()
+    t2 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa2").first()
     
     cost1 = t1.costo if t1 else 5.0  # Fallback
     cost2 = t2.costo if t2 else 10.0 # Fallback
@@ -1424,8 +1424,8 @@ def update_attendance(
         remaining_minutes = (seconds % 3600) / 60
         
         # Buscar tarifas en DB
-        t1 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa 1").first()
-        t2 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa 2").first()
+        t1 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa1").first()
+        t2 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa2").first()
         
         cost1 = t1.costo if t1 else 5.0  # Fallback
         cost2 = t2.costo if t2 else 10.0 # Fallback
