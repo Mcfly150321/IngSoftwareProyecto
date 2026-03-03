@@ -1090,8 +1090,8 @@ def logout(request: Request):
 ph = PasswordHasher()
 
 # Cargar usuarios desde environment
-user1 = os.getenv("USER")
-hash_password = os.getenv("PASSWORD")
+admin_user = os.getenv("USER")
+admin_password_hash = os.getenv("PASSWORD")
 
 class LoginData(BaseModel): 
     username: str
@@ -1099,8 +1099,16 @@ class LoginData(BaseModel):
 
 @router.post("/login")
 def login(datos: LoginData, request: Request):
+    # Validar que las variables de entorno estén configuradas
+    if not admin_user or not admin_password_hash:
+        print("ERROR: USER o PASSWORD no configurados en las variables de entorno.")
+        raise HTTPException(
+            status_code=500,
+            detail="Error de configuración del servidor: faltan credenciales."
+        )
+
     # 1. Validar primero el usuario (¡Muy importante!)
-    if datos.username != user1:
+    if datos.username != admin_user:
         raise HTTPException(
             status_code=401,
             detail="Usuario o contraseña incorrectos"
@@ -1108,15 +1116,15 @@ def login(datos: LoginData, request: Request):
 
     # Comparar password con hash
     try:
-        ph.verify(hash_password, datos.password)
+        ph.verify(admin_password_hash, datos.password)
         
         # ✅ Login exitoso: Seteamos la sesión firmada
-        request.session["session_user"] = user1
+        request.session["session_user"] = admin_user
         
         return {
             "success": True,
             "mensaje": "Login exitoso",
-            "username": user1
+            "username": admin_user
         }
         
     except VerifyMismatchError:
