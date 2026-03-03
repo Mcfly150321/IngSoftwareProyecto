@@ -118,7 +118,6 @@ class WorkshopCreate(WorkshopBase):
 class WorkshopSchema(WorkshopBase):
     id: int
     is_active: bool
-    diplomas_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -153,14 +152,6 @@ class WorkshopStudentSchema(BaseModel):
         from_attributes = True
 
 # 6. OTROS (Búsqueda y Asistencia)
-class SearchRequest(BaseModel):
-    query: str
-    folder_type: str
-
-class GenerateDiplomasRequest(BaseModel):
-    file_id: str
-    workshop_id: int
-    workshop_name: str
 
 class AssistanceBase(BaseModel):
     student_id: str

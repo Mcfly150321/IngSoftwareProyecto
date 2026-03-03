@@ -10,14 +10,9 @@ from typing import List, Optional
 from pydantic import BaseModel
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from google.oauth2 import service_account          # ← NUEVO
-from google.auth.transport.requests import Request as GoogleRequest  # ← renombrado para evitar conflicto con Request de FastAPI
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 from . import database, schemas, models
 from .database import SessionLocal, init_db
 from .generatecarnet import generate_carnet
-from google.oauth2.credentials import Credentials
 import datetime
 from datetime import date
 import random
@@ -30,14 +25,6 @@ from .cloudinarylogic import subir_imagen
 
 
 
-ID_PLANTILLAS_DIPLOMAS = '1y7VcF9_p8tO8KCoOtUNkLXx64-53mOzg'
-ID_DIPLOMAS_GENERADOS = '1dZPUVzRVAYt6LccddfHUw3eQD2pfGCk1'
-ID_FICHAS_GENERADAS = '1YoOWqaByU6vSoC8R_l7xZisPwAuazC6x'
-ID_FICHA_INDIVIDUAL = '1xSIkA0xhZoWHGKvw4gSiM_Fdfkvc4yk2-gf9y034QRk'
-ID_ETIQUETAS = '1Vo5CNFILlA46Fmy0pc5D_6NhVOr4BOaq'
-ID_TEORIAS = '1TH0gMqPu3zKkms_fZfypJCKBmnpFHT0Z'
-ID_CARNETSPDF = '1EGHte2VAcr0HbA86WwVNW6ajmqiWnaDY'
-ID_FOTOSALUMNAS = '1bR6EdIz08l4fzDmDDPakFLy7Xu7WIR15'
 
 from fastapi.staticfiles import StaticFiles
 
@@ -120,216 +107,6 @@ MODULES_LIST = [
 def ping():
     return {"status": "ok"}
 
-# Google Drive Helpers
-def authenticate_google():
-    creds = None
-    # Intentamos cargar el token existente
-    if os.path.exists(TOKEN_FILE):
-        try:
-            creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-        except Exception as e:
-            print(f"Error al cargar token.json: {e}")
-
-    # Si hay credenciales pero expiraron, intentamos refrescar
-    if creds and creds.expired and creds.refresh_token:
-        try:
-            creds.refresh(GoogleRequest())
-        except Exception as e:
-            print(f"Error al refrescar token: {e}")
-            creds = None
-    drive_service = build('drive', 'v3', credentials=creds)
-    docs_service = build('docs', 'v1', credentials=creds)
-    slides_service = build('slides', 'v1', credentials=creds)
-    return drive_service, docs_service, slides_service
-
-def manipular_google_docs(drive_service, docs_service, Client, approved_modules, approved_workshops, estado):
-    import datetime
-    nombre_alumna = f"{Client.names} {Client.lastnames}"
-    carnet_alumna = Client.idclient
-    nombre_personalizado = f"{nombre_alumna}_{carnet_alumna}_fichaacademica"
-    if Client.attendance_percentage is None:
-        asistencia_alumna = "--%"
-    elif Client.plan == "ejecutivo":
-        asistencia_alumna = "100%"
-    else:
-        asistencia_alumna = f"{Client.attendance_percentage}%"
-    # 1. Definimos los metadatos para el nuevo Google Doc
-    file_metadata = {
-        'name': nombre_personalizado,
-        'mimeType': 'application/vnd.google-apps.document',
-        'parents': [ID_FICHAS_GENERADAS],
-    }
-
-    # 2. Ejecutamos la copia
-    created_file = drive_service.files().copy(
-        fileId=ID_FICHA_INDIVIDUAL,
-        body=file_metadata,
-        fields='id'
-    ).execute()
-
-    nuevo_doc_id = created_file.get('id')
-
-    current_year = datetime.datetime.now().strftime("%Y")
-    next_year = str(int(current_year) + 1)
-    
-    # Reemplazos enumerados
-    reemplazo_nombresModulos = "\n".join(f"{i+1}. {mod}" for i, mod in enumerate(approved_modules)) if approved_modules else "Ningún módulo completado."
-    reemplazo_nombresWorkshops = "\n".join(f"{i+1}. {ws}" for i, ws in enumerate(approved_workshops)) if approved_workshops else "Ningún taller completado."
-    
-    requests = [
-        {
-            'replaceAllText': {
-                'containsText': {'text': '{{talleres}}', 'matchCase': True},
-                'replaceText': reemplazo_nombresWorkshops
-            }
-        },
-        {
-            'replaceAllText': {
-                'containsText': {'text': '{{modulos}}', 'matchCase': True},
-                'replaceText': reemplazo_nombresModulos # Por ahora usamos lo mismo para ambos
-            }
-        },
-        {
-            'replaceAllText': {
-                'containsText': {'text': '{{year-yearnext}}', 'matchCase': True},
-                'replaceText': f"{current_year}-{next_year}"
-            }
-        },
-        {
-            'replaceAllText': {
-                'containsText': {'text': '{{nombre_alumna}}', 'matchCase': True},
-                'replaceText': nombre_alumna
-            }
-        },
-        {
-            'replaceAllText': {
-                'containsText': {'text': '{{carnet_alumna}}', 'matchCase': True},
-                'replaceText': carnet_alumna
-            }
-        },
-        {
-            'replaceAllText': {
-                'containsText': {'text': '{{estado}}', 'matchCase': True},
-                'replaceText': estado
-            }
-        },
-        {
-            'replaceAllText': {
-                'containsText': {'text': '{{porcentaje}}', 'matchCase': True},
-                'replaceText': asistencia_alumna
-            }
-        }
-    ]
-
-    docs_service.documents().batchUpdate(
-        documentId=nuevo_doc_id,
-        body={'requests': requests}
-    ).execute()
-    return nuevo_doc_id
-
-def hacer_publico(service, file_id):
-    """Hace que un archivo de Drive sea legible por cualquiera con el link."""
-    permission = {
-        'type': 'anyone',
-        'role': 'reader'
-    }
-    service.permissions().create(fileId=file_id, body=permission).execute()
-
-def borrar_archivo_drive(service, folder_id, file_name):
-    """Busca y borra un archivo en Drive si existe (para evitar duplicados)."""
-    try:
-        query = f"name='{file_name}' and '{folder_id}' in parents and trashed=false"
-        results = service.files().list(q=query, fields="files(id, name)").execute()
-        files = results.get('files', [])
-        
-        for file in files:
-            service.files().delete(fileId=file['id']).execute()
-            print(f"DEBUG: Archivo borrado de Drive: {file_name}")
-    except Exception as e:
-        print(f"DEBUG: Error al borrar archivo de Drive: {str(e)}")
-
-
-def convertir_pptx_a_slides(drive_service, pptx_id, nombre_gslides):
-    file_metadata = {
-        'name': nombre_gslides,
-        'mimeType': 'application/vnd.google-apps.presentation',
-        'parents': [ID_DIPLOMAS_GENERADOS],
-    }
-
-    created_file = drive_service.files().copy(
-        fileId=pptx_id,
-        body=file_metadata,
-        fields='id'
-    ).execute()
-
-    print("Google Slides creado con ID:", created_file['id'])
-    return created_file['id']
-
-# -------------------------
-# GENERAR DIPLOMAS EN LOTES (Slides)
-# -------------------------
-def generar_diplomas(slides_service, presentation_id, nombres, workshop_name, fecha_str):
-    # 1. Obtener ID de la diapositiva plantilla
-    presentation = slides_service.presentations().get(presentationId=presentation_id).execute()
-    slide_id_template = presentation['slides'][0]['objectId']
-
-    # 2. Duplicar la diapositiva plantilla por cada nombre
-    requests = []
-    for _ in nombres:
-        requests.append({
-            'duplicateObject': {
-                'objectId': slide_id_template
-            }
-        })
-        
-    if not requests:
-        return
-
-    responses = slides_service.presentations().batchUpdate(
-        presentationId=presentation_id,
-        body={'requests': requests}
-    ).execute()
-
-    # 3. Obtener IDs de slides duplicadas
-    duplicated_slide_ids = [r['duplicateObject']['objectId'] for r in responses['replies']]
-
-    # 4. Reemplazar texto en cada slide duplicada
-    for slide_id, nombre in zip(duplicated_slide_ids, nombres):
-        replace_requests = [
-            {
-                'replaceAllText':{
-                    'containsText': {'text':'{{Nombre}}','matchCase': True},
-                    'replaceText': nombre,
-                    'pageObjectIds':[slide_id]
-                }
-            },
-            {
-                'replaceAllText':{
-                    'containsText': {'text':'{{Nombre_Taller}}','matchCase': True},
-                    'replaceText': workshop_name,
-                    'pageObjectIds':[slide_id]
-                }
-            },
-            {
-                'replaceAllText':{
-                    'containsText': {'text':'{{Fecha}}','matchCase': True},
-                    'replaceText': fecha_str,
-                    'pageObjectIds':[slide_id]
-                }
-            }
-        ]
-        slides_service.presentations().batchUpdate(
-            presentationId=presentation_id,
-            body={'requests': replace_requests}
-        ).execute()
-
-    # 5. Eliminar la diapositiva plantilla original
-    slides_service.presentations().batchUpdate(
-        presentationId=presentation_id,
-        body={'requests':[{'deleteObject':{'objectId':slide_id_template}}]}
-    ).execute()
-
-    print(f"Diplomas generados en Google Slides (cada nombre en una diapositiva).")
 
 @router.post("/clients/", response_model=schemas.StudentSchema)
 async def create_student(
@@ -385,62 +162,47 @@ async def create_student(
         qr_rounded = photo_rounded(qr_path)
 
         # 2. FOTO (Solo si el usuario la mandó)
+        image_rounded = None
         if photo:
             # Guardamos los bytes en un archivo temporal para que photo_rounded pueda leerlo
             temp_photo_path = os.path.join(tmp_images_dir, f"temp_{db_student.idclient}.jpg")
 
             with open(temp_photo_path, "wb") as f:
-                # 'photo_bytes' fue leída arriba en la línea 88
                 f.write(photo_bytes)
 
             photo_cloudinary_url = subir_imagen(temp_photo_path)
-            
-            image_rounded = photo_rounded(temp_photo_path)
-            
-            # 3. GENERAR PDF
-            # 3. GENERAR PDF
-            pdf_path = pdf_utils.generar_pdf(db_student.idclient, qr_rounded)
-
-           # borrando la subida a drive y reemplazando por cloudinary
-           #regresando subida pero solo de pdf, porque borre la subida de pdf
-            drive_service, docs_service, _ = authenticate_google()
-            if not drive_service:
-                print("ERROR: No se pudo conectar con Google Drive (falta token.json)")
-            else:
-                # --- A. SUBIR idclient PDF ---
-                nombre_carnet = f"carnet_{db_student.idclient}.pdf"
-                
-                # Borrar archivo viejo si existe
-                borrar_archivo_drive(drive_service, ID_CARNETSPDF, nombre_carnet)
-                
-                metadata_carnet = {'name': nombre_carnet, 'parents': [ID_CARNETSPDF]}
-                media_pdf = MediaFileUpload(pdf_path, mimetype='application/pdf', resumable=True)
-                
-                # Pedir el URL del PDF en la respuesta
-                carnet_drive = drive_service.files().create(
-                    body=metadata_carnet, 
-                    media_body=media_pdf,
-                    fields='id, webViewLink'
-                ).execute()
-                
-                # Hacer el PDF público y guardar URL en la base de datos
-                hacer_publico(drive_service, carnet_drive['id'])
-                db_student.carnet_pdf_url = carnet_drive.get('webViewLink')
-                db.commit()
-                print(f"DEBUG: idclient PDF subido para {db_student.idclient}") 
-
-                # Guardar URLs en la base de datos
             db_student.photo_url = photo_cloudinary_url
-            db.commit()
-            print(f"DEBUG: Foto guardada para {db_student.idclient}")
-            for module_name in MODULES_LIST:
+            
+            # Generar versión redondeada para el carnet
+            image_rounded = photo_rounded(temp_photo_path)
+            print(f"DEBUG: Foto subida para {db_student.idclient}")
+
+        # 3. GENERAR PDF (Siempre se genera, con o sin foto)
+        # pdf.py: generar_pdf(idclient, qr_path, foto_path=None, desplazamiento=0.0)
+        pdf_path = generar_pdf(db_student.idclient, qr_rounded, image_rounded)
+        
+        # --- SUBIR PDF A CLOUDINARY ---
+        pdf_cloudinary_url = subir_imagen(pdf_path)
+        db_student.carnet_pdf_url = pdf_cloudinary_url
+        
+        db.commit()
+        print(f"DEBUG: PDF subido a Cloudinary para {db_student.idclient}")
+
+        # 4. AGREGAR A MODULOS (Independiente de si hay foto)
+        for module_name in MODULES_LIST:
+            exists = db.query(models.Modulos).filter(
+                models.Modulos.student_id == db_student.idclient,
+                models.Modulos.Modulos == module_name
+            ).first()
+            if not exists:
                 db.add(models.Modulos(
                     student_id=db_student.idclient,
                     Modulos=module_name,
                     month=0,
-                        year=0,
-                        is_approved=False
-                    ))
+                    year=0,
+                    is_approved=False
+                ))
+        db.commit()
 
         # 5. LIMPIEZA DE ARCHIVOS TEMPORALES (Evitar llenar /tmp)
         # Recolectamos todos los archivos creados para borrar
@@ -530,21 +292,10 @@ def graduate_student(idclient: str, db: Session = Depends(get_db)):
     # Extraer los nombres de los módulos de la lista de tuplas
     lista_aprobados = [m[0] for m in approved_modules]
 
-    try:
-        drive_service, docs_service, _ = authenticate_google()
-        doc_id = manipular_google_docs(drive_service, docs_service, Client, lista_aprobados, lista_talleres, estado)
-        Client.ficha_url = f"https://docs.google.com/document/d/{doc_id}/edit"
-        db.commit()
-        return {
-            "status": "ok",
-            "doc_id": doc_id,
-            "url": f"https://docs.google.com/document/d/{doc_id}/edit",
-            "message": "¡Alumna graduada exitosamente, ficha generada con exito!"
-        }
-        
-    except Exception as e:
-        print(f"Error al generar ficha: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "status": "ok",
+        "message": "¡Alumna graduada exitosamente!"
+    }
 
 
 
@@ -582,20 +333,10 @@ def deactivate_student(idclient: str, db: Session = Depends(get_db)):
     # Extraer los nombres de los módulos de la lista de tuplas
     lista_aprobados = [m[0] for m in approved_modules]
 
-    try:
-        drive_service, docs_service, _ = authenticate_google()
-        doc_id = manipular_google_docs(drive_service, docs_service, Client, lista_aprobados, lista_talleres, estado)
-        Client.ficha_url = f"https://docs.google.com/document/d/{doc_id}/edit"
-        db.commit()
-        return {
-            "status": "success",
-            "doc_id": doc_id,
-            "url": f"https://docs.google.com/document/d/{doc_id}/edit",
-            "message": "¡Alumna dada de baja, ficha generada con exito!"
-        }
-    except Exception as e:
-        print(f"Error al generar ficha: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "status": "success",
+        "message": "¡Alumna dada de baja exitosamente!"
+    }
 
 @router.put("/clients/{idclient}", response_model=schemas.StudentSchema)
 async def update_student(
@@ -662,46 +403,24 @@ async def update_student(
         qr_rounded = photo_rounded(qr_path)
 
         # 2. PROCESAR FOTO (Solo si mandaron una nueva)
+        image_rounded = None
         if photo:
             temp_photo_path = os.path.join(tmp_images_dir, f"update_temp_{db_student.idclient}.jpg")
             with open(temp_photo_path, "wb") as f:
                 f.write(photo_bytes)
             
             image_rounded = photo_rounded(temp_photo_path)
-            
-            # 3. GENERAR NUEVO PDF
-            primer_nombre   = db_student.names.split()[0]
-            primer_apellido = db_student.lastnames.split()[0]
-            nombre_carnet   = f"{primer_nombre} {primer_apellido}"
-            pdf_path = generar_pdf(nombre_carnet, image_rounded, qr_rounded)
+            print(f"DEBUG: Nueva foto procesada para {db_student.idclient}")
 
-            #quitamos de nuevo la subida a drive 
-            #regresando subida pero solo de pdf, porque borre la subida de pdf
-            drive_service, docs_service, _ = authenticate_google()
-            if not drive_service:
-                print("ERROR: No se pudo conectar con Google Drive (falta token.json)")
-            else:
-                # --- A. SUBIR idclient PDF ---
-                nombre_carnet = f"carnet_{db_student.idclient}.pdf"
-                
-                # Borrar archivo viejo si existe
-                borrar_archivo_drive(drive_service, ID_CARNETSPDF, nombre_carnet)
-                
-                metadata_carnet = {'name': nombre_carnet, 'parents': [ID_CARNETSPDF]}
-                media_pdf = MediaFileUpload(pdf_path, mimetype='application/pdf', resumable=True)
-                
-                # Pedir el URL del PDF en la respuesta
-                carnet_drive = drive_service.files().create(
-                    body=metadata_carnet, 
-                    media_body=media_pdf,
-                    fields='id, webViewLink'
-                ).execute()
-                
-                # Hacer el PDF público y guardar URL en la base de datos
-                hacer_publico(drive_service, carnet_drive['id'])
-                db_student.carnet_pdf_url = carnet_drive.get('webViewLink')
-                db.commit()
-                print(f"DEBUG: idclient PDF subido para {db_student.idclient}") 
+        # 3. GENERAR NUEVO PDF
+        pdf_path = generar_pdf(db_student.idclient, qr_rounded, image_rounded)
+        
+        # --- SUBIR PDF A CLOUDINARY ---
+        pdf_cloudinary_url = subir_imagen(pdf_path)
+        db_student.carnet_pdf_url = pdf_cloudinary_url
+        db.commit()
+        print(f"DEBUG: PDF actualizado y subido para {db_student.idclient}")
+
         # 5. LIMPIEZA
         archivos_a_borrar = [qr_path, qr_rounded]
         if photo:
@@ -1045,62 +764,6 @@ def unlink_package_from_workshop(workshop_id: int, package_id: int, db: Session 
 
 
 
-@router.post("/generardiplomas")
-def hacer_diplomas(req: schemas.GenerateDiplomasRequest, db: Session = Depends(get_db)):
-    # Buscar estudiantes del taller
-    workshop_students = db.query(models.WorkshopStudent).filter(
-        models.WorkshopStudent.workshop_id == req.workshop_id
-    ).all()
-    
-    if not workshop_students:
-        raise HTTPException(status_code=404, detail="No se encontraron alumnas en este taller")
-        
-    lista_nombres = []
-    
-    for ws in workshop_students:
-        # ws.Client.names y ws.Client.lastnames asumiendo la relacion cargada o consultada
-        student_data = db.query(models.Client).filter(models.Client.idclient == ws.student_id).first()
-        if student_data:
-            nombre_completo = f"{student_data.names} {student_data.lastnames}"
-            lista_nombres.append(nombre_completo)
-            
-    # Authenticate and get services
-    drive_service, _, slides_service = authenticate_google()
-    if not drive_service or not slides_service:
-        raise HTTPException(status_code=500, detail="Error de autenticación con Google Workspace")
-            
-    # Generar Fecha Formateada en Español
-    import datetime
-    meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-    hoy = datetime.date.today()
-    fecha_formateada = f"el día {hoy.day} de {meses[hoy.month - 1]} del {hoy.year}"
-    
-    # Aquí puedes agregar luego la lógica para conectarte a Google Slides/Drive con la file_id 
-    nombre_diplomas = f"Diplomas {req.workshop_name}"
-    diplomaslides = convertir_pptx_a_slides(drive_service, req.file_id, nombre_diplomas)
-    diplomasgenerados = generar_diplomas(slides_service, diplomaslides, lista_nombres, req.workshop_name, fecha_formateada)
-    
-    # Obtener el webViewLink del nuevo archivo
-    file_info = drive_service.files().get(fileId=diplomaslides, fields='webViewLink').execute()
-    slide_url = file_info.get('webViewLink')
-    
-    # Guardar en la base de datos
-    workshop = db.query(models.Workshop).filter(models.Workshop.id == req.workshop_id).first()
-    if workshop:
-        workshop.diplomas_url = slide_url
-        db.commit()
-        
-    # y los lista_nombres. Por ahora retornamos el arreglo como pediste.
-    
-    return {
-        "status": "success",
-        "file_id": req.file_id,
-        "workshop_id": req.workshop_id,
-        "alumnas_a_generar": lista_nombres,
-        "total": len(lista_nombres),
-        "url_diplomas": slide_url
-    }
-
 @router.get("/workshops/{workshop_id}/packages/", response_model=list[schemas.PackageSchema])
 def get_workshop_packages(workshop_id: int, db: Session = Depends(get_db)):
     ws = db.query(models.Workshop).get(workshop_id)
@@ -1380,45 +1043,6 @@ def assign_package_to_student(workshop_id: int, student_id: str, package_id: Opt
     assoc.package_id = package_id
     db.commit()
     return {"status": "success"}
-
-
-@router.post("/buscar/")
-def buscar(data: schemas.SearchRequest):
-    busqueda = data.query.strip()
-    tipo = data.folder_type
-
-    if tipo == 'etiquetas':
-        folder_id = ID_ETIQUETAS
-    elif tipo == 'teoria':
-        folder_id = ID_TEORIAS
-    elif tipo == 'plantillas':
-        folder_id = ID_PLANTILLAS_DIPLOMAS
-    else:
-        raise HTTPException(status_code=400, detail="Tipo de búsqueda no válido")
-
-    drive_service, docs_service, _ = authenticate_google()
-    if not drive_service:
-        raise HTTPException(status_code=500, detail="No se encontró token.json en el servidor")
-
-    try:
-        query_str = f"name contains '{busqueda}' and '{folder_id}' in parents and trashed = false"
-        
-        results = drive_service.files().list(
-            q=query_str,
-            fields="files(id, name, webViewLink, thumbnailLink)",
-            pageSize=100
-        ).execute()
-        
-        return {'archivos': results.get('files', [])}
-    
-    except Exception as e:
-        import traceback
-        error_msg = traceback.format_exc()
-        print(f"Error en búsqueda Google Drive: {error_msg}")
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Error en búsqueda de Drive: {str(e)}"
-        )
 
 
 

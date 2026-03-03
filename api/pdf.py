@@ -15,7 +15,7 @@ ESCALA_FOTO   = 1.8
 ESCALA_QR     = 2.6
 ESCALA_TEXTO  = 2.5
 
-def generar_pdf(idclient, qr_path):
+def generar_pdf(idclient, qr_path, foto_path=None, desplazamiento=0.0):
     """
     Genera un idclient PDF con plantilla.
     Medidas en cm.
@@ -26,6 +26,17 @@ def generar_pdf(idclient, qr_path):
     # 🖼️ Plantilla de fondo
     template_path = os.path.join(ASSETS_DIR, "Template3.png") #cambiando template con nuevo diseno
     pdf.image(template_path, x=0, y=0, w=6.0, h=10.7)
+
+    # 👤 Foto Alumna (opcional)
+    if foto_path and os.path.exists(foto_path):
+        # x=1.9, y=1.2, w=2.2, h=2.2 aprox
+        foto_orig_x, foto_orig_y = 1.9, 1.2
+        foto_orig_w, foto_orig_h = 2.2, 2.2
+        foto_w = foto_orig_w * ESCALA_FOTO
+        foto_h = foto_orig_h * ESCALA_FOTO
+        foto_x = foto_orig_x + (foto_orig_w - foto_w) / 2
+        foto_y = foto_orig_y + (foto_orig_h - foto_h) / 2
+        pdf.image(foto_path, x=foto_x, y=foto_y, w=foto_w, h=foto_h)
 
     # 📦 QR (base: x=2.41, y=3.86, w=1.16, h=1.16)
     qr_orig_x, qr_orig_y = 2.41, 3.86

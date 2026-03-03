@@ -9,9 +9,28 @@ class Client(Base):
     names = Column(String)
     lastnames = Column(String)
     nit = Column(String, unique=True, index=True)
+    age = Column(Integer, nullable=True)
+    cui = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    plan = Column(String, default="diario")
+    is_adult = Column(Boolean, default=True)
+    guardian1_name = Column(String, nullable=True)
+    guardian1_phone = Column(String, nullable=True)
+    guardian2_name = Column(String, nullable=True)
+    guardian2_phone = Column(String, nullable=True)
+    attendance_percentage = Column(Float, default=0.0)
+    
     is_created = Column(DateTime, default=func.now())
     is_paid = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
+    is_graduated = Column(Boolean, default=False)
+    
     parqueo_id = Column(Integer, ForeignKey("parqueos.id"))
+    
+    photo_url = Column(String, nullable=True)
+    hash_carnet = Column(String, index=True)
+    registration_date = Column(String, nullable=True)
+    carnet_pdf_url = Column(String, nullable=True)
     
     parqueo = relationship("Parqueo", back_populates="clients")
     assistances = relationship(
@@ -21,6 +40,7 @@ class Client(Base):
     )
     payments = relationship("Payment", back_populates="Client", cascade="all, delete-orphan")
     workshops = relationship("WorkshopStudent", back_populates="Client", cascade="all, delete-orphan")
+    Modulos = relationship("Modulos", back_populates="Client", cascade="all, delete-orphan")
 
 class Assistance(Base):
     __tablename__ = "assistance"
@@ -78,7 +98,6 @@ class Workshop(Base):
     name = Column(String)
     description = Column(String)
     is_active = Column(Boolean, default=True) # Para culminar taller sin borrar
-    diplomas_url = Column(String, nullable=True)
 
     clients = relationship("WorkshopStudent", back_populates="workshop", cascade="all, delete-orphan")
     packages = relationship("Package", secondary="workshop_packages", back_populates="workshops")
