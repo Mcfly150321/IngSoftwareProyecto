@@ -47,26 +47,6 @@ def generar_imgticket(idclient, qr_path):
             qr_img = qr_img.convert("RGBA").resize((qr_w, qr_h), Image.Resampling.LANCZOS)
             img.paste(qr_img, (qr_x, qr_y), qr_img)
 
-        # 3. Texto: "Sistema de Parqueo"
-        fuente_path = os.path.join(ASSETS_DIR, "templatefuente.ttf")
-        
-        # Tamaño de fuente proporcional al nuevo tamaño del QR
-        font_size = int(32 * factor / 10) 
-        font = ImageFont.truetype(fuente_path, font_size)
-
-        texto = "Sistema de Parqueo"
-        # Centrado horizontal automático del texto
-        bbox = draw.textbbox((0, 0), texto, font=font)
-        text_w = bbox[2] - bbox[0]
-        
-        # Margen para que el texto no choque con el QR agrandado
-        margen_texto = 0.3 * factor 
-        texto_x = (w_img - text_w) / 2
-        texto_y = qr_y + qr_h + margen_texto
-
-        # Dibujamos el texto en negro puro para mejor contraste
-        draw.text((texto_x, texto_y), texto, font=font, fill="black")
-
         # 4. Guardar como PNG optimizado
         output_path = os.path.join(TMP_IMAGES, f"carnet_{idclient}.png")
         # 'optimize=True' mantiene la calidad bajando un poco el peso del archivo
