@@ -69,7 +69,7 @@ async def create_parqueo(
     # CORRECCIÓN: Usar capacidad_maxima que es como viene del frontend/esquema
     db_parqueo = models.Parqueo(
         nombre=parqueo.nombre,
-        capacidad=parqueo.capacidad_maxima # <--- Cambiado para coincidir con el Schema
+        capacidad_maxima=parqueo.capacidad_maxima
     )
     db.add(db_parqueo)
     db.commit()

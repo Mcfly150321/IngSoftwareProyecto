@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Title update
             const titles = {
                 'dashboard': 'Dashboard Parqueo',
+                'parqueosadd': 'Agregar Parqueo',
                 'inscripcion': 'Nuevo Ticket / Registro',
                 'pagos': 'Control de Pagos / Salida'
             };
@@ -51,6 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Lógica inicial del formulario de registro
     initRegistrationForm();
+    initParqueoForm();
     
     // Iniciar monitoreo de conexión y stats
     updateDashboardStats();
@@ -194,24 +196,42 @@ function renderAttendanceCharts(data) {
     }
 }
 
-/** seccion de add parqueio */
 
-// 1. Referencias a los elementos
-// ... dentro del listener del botón ...
-const formData = new FormData(addParqueoForm);
-const data = Object.fromEntries(formData.entries());
+/** seccion de add parqueo */
+function initParqueoForm() {
+    const addParqueoForm = document.getElementById('add-parqueo-form');
+    if (!addParqueoForm) return;
 
-const newParqueo = {
-    nombre: data.nombreparqueo, // Asegúrate de que coincida con el backend
-    capacidad_maxima: parseInt(data.capacidad_maxima) // <--- DEBE SER ESTE NOMBRE
-};
+    addParqueoForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('submitparqueo');
+        await withLoading(submitBtn, async () => {
+            const formData = new FormData(addParqueoForm);
+            const data = Object.fromEntries(formData.entries());
 
-// ... luego el fetch ...
-const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(newParqueo)
-});
+            const newParqueo = {
+                nombre: data.nombreparqueo,
+                capacidad_maxima: parseInt(data.capacidad_maxima)
+            };
+
+            const url = `${API_URL}/newparqueo`;
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newParqueo)
+                });
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.detail || 'Error al crear parqueo');
+                alert(`✅ Parqueo "${result.nombre}" creado exitosamente.`);
+                addParqueoForm.reset();
+                loadParqueosOptions();
+            } catch (err) {
+                alert(`❌ Error: ${err.message}`);
+            }
+        });
+    });
+}
 
 
 /**
