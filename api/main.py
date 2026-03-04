@@ -114,8 +114,10 @@ async def create_student(
             pass
 
         # Limpieza de archivos
-        for p in [qr_path, qr_rounded, pdf_path]:
-            if os.path.exists(p): os.remove(p)
+        for p in [qr_path, img_path]:
+            try:
+                if os.path.exists(p): os.remove(p)
+            except: pass
 
     except Exception as e:
         print(f"ERROR en procesamiento post-registro: {str(e)}")
@@ -384,12 +386,9 @@ def update_attendance(
     action: str = Query("take", enum=["take", "delete"]),
     db: Session = Depends(get_db)
 ):
-    # Buscar a la alumna por su hash_carnet O por su idclient directamente (manual)
+    # Buscar al cliente por su idclient directamente
     Client = db.query(models.Client).filter(
-        or_(
-            models.Client.hash_carnet == identifier,
-            models.Client.idclient == identifier
-        )
+        models.Client.idclient == identifier
     ).first()
 
     if not Client:
