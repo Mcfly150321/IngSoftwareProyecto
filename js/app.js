@@ -197,54 +197,20 @@ function renderAttendanceCharts(data) {
 /** seccion de add parqueio */
 
 // 1. Referencias a los elementos
-const addParqueoForm = document.getElementById('add-parqueo-form');
-const addparqueobtn = document.getElementById('submitparqueo');
+// ... dentro del listener del botón ...
+const formData = new FormData(addParqueoForm);
+const data = Object.fromEntries(formData.entries());
 
-// 2. Evento de escucha (usamos el submit del formulario para captar el Enter también)
-addParqueoForm.addEventListener('submit', async (event) => {
-    event.preventDefault(); // Detenemos la recarga de página
+const newParqueo = {
+    nombre: data.nombreparqueo, // Asegúrate de que coincida con el backend
+    capacidad_maxima: parseInt(data.capacidad_maxima) // <--- DEBE SER ESTE NOMBRE
+};
 
-    await withLoading(addparqueobtn, async () => {
-        // Extraemos los datos automáticamente del formulario
-        const formData = new FormData(addParqueoForm);
-        const data = Object.fromEntries(formData.entries());
-
-        // Preparamos el objeto para la API
-        const newParqueo = {
-            nombre: data.nombreparqueo, // Según tu HTML: name="nombreparqueo"
-            capacidad: parseInt(data.capacidad_maxima)
-        };
-
-        const url = `${API_URL}/newparqueo`;
-
-        try {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newParqueo)
-            });
-
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.detail || "Error al registrar el parqueo");
-            }
-
-            const result = await res.json();
-
-            // Éxito
-            alert(`Parqueo "${newParqueo.nombre}" agregado con éxito.`);
-            
-            // Limpieza y actualización
-            addParqueoForm.reset();
-            
-            // Si tienes funciones globales de refresco, llámalas aquí
-            if (typeof updateDashboardStats === "function") updateDashboardStats();
-
-        } catch (err) {
-            console.error("Error en POST:", err);
-            alert(`Error: ${err.message}`);
-        }
-    });
+// ... luego el fetch ...
+const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(newParqueo)
 });
 
 
