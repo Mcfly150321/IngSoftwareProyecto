@@ -12,16 +12,13 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from . import database, schemas, models
 from .database import SessionLocal, init_db
-from .generatecarnet import generate_carnet
 import datetime
 from datetime import date
 import random
 import os
 import urllib.parse
-from .pdf import generar_pdf
 from .qr import generar_qr
-from .border import photo_rounded
-from .hash import hashear_carnet
+from .idticket import generate_idticket
 from .imagenticket import generar_imgticket
 from .cloudinarylogic import subir_imagen
 
@@ -66,15 +63,15 @@ def ping():
 
 
 @router.post("/clients/")
-async def create_student(
-    client: schemas.StudentCreate,
+async def create_Client(
+    client: schemas.ClientCreate,
     db: Session = Depends(get_db)
 ):
     # 1. Inicializamos las variables para evitar UnboundLocalError
     pdf_cloudinary_url = None
     url = ""
 
-    db_student = models.Client(
+    db_Client = models.Client(
         names=client.names,
         lastnames=client.lastnames,
         nit=client.nit,
@@ -82,23 +79,23 @@ async def create_student(
         parqueo_id=client.parqueo_id,
         is_created=get_now_gt()
     )
-    db_student.idclient = f"2026{str(random.randint(100000, 999999))}"
-    db_student.registration_date = get_now_gt().strftime("%Y-%m")
-    db_student.is_created = get_now_gt()
+    db_Client.idclient = generate_idticket(db)
+    db_Client.registration_date = get_now_gt().strftime("%Y-%m")
+    db_Client.is_created = get_now_gt()
     
-    db.add(db_student)
+    db.add(db_Client)
     db.commit()
-    db.refresh(db_student)
+    db.refresh(db_Client)
 
     # --- LÓGICA DE PROCESAMIENTO ---
     tmp_images_dir = "/tmp/images"
     os.makedirs(tmp_images_dir, exist_ok=True)
 
     try:
-        qr_path = generar_qr(db_student.idclient)
-        img_path = generar_imgticket(db_student.idclient, qr_path)
+        qr_path = generar_qr(db_Client.idclient)
+        img_path = generar_imgticket(db_Client.idclient, qr_path)
         img_cloudinary_url = subir_imagen(img_path)
-        db_student.carnet_img_url = img_cloudinary_url
+        db_Client.carnet_img_url = img_cloudinary_url
 
         # MENSAJE DE WHATSAPP (Aquí ya no fallará porque importamos urllib)
         nombremensaje = client.names.strip().split()[0]
@@ -124,9 +121,9 @@ async def create_student(
     
     # El return ahora siempre encontrará las variables, aunque estén vacías si falló el try
     return {
-        "idclient": db_student.idclient,
-        "names": db_student.names,
-        "lastnames": db_student.lastnames,
+        "idclient": db_Client.idclient,
+        "names": db_Client.names,
+        "lastnames": db_Client.lastnames,
         "carnet_pdf_url": pdf_cloudinary_url,
         "url": url 
     }
@@ -146,14 +143,14 @@ def get_carnet_url(idclient: str, db: Session = Depends(get_db)):
     # Refrescamos para asegurar que devolvemos el estado real de la DB
     return {"status": status, "is_paid": is_paid}
 
-@router.post("/payments/close/{student_id}")
-def close_payment(student_id: str, db: Session = Depends(get_db)):
-    client = db.query(models.Client).filter(models.Client.idclient == student_id).first()
+@router.post("/payments/close/{Client_id}")
+def close_payment(Client_id: str, db: Session = Depends(get_db)):
+    client = db.query(models.Client).filter(models.Client.idclient == Client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
 
     payment = db.query(models.Payment).filter(
-        models.Payment.student_id == student_id,
+        models.Payment.Client_id == Client_id,
         models.Payment.is_paid == False
     ).first()
 
@@ -199,8 +196,8 @@ def close_payment(student_id: str, db: Session = Depends(get_db)):
 
 @router.get("/stats")
 async def get_stats(db: Session = Depends(get_db)):
-    # Contar clientes activos (no pagados)
-    active_count = db.query(models.Client).filter(models.Client.is_paid == False).count()
+    # Contar clientes activos
+    active_count = db.query(models.Client).filter(models.Client.is_active == True).count()
     
     # Obtener todos los parqueos para los gráficos
     parqueos = db.query(models.Parqueo).all()
@@ -213,7 +210,7 @@ async def get_stats(db: Session = Depends(get_db)):
     for p in parqueos:
         count = db.query(models.Client).filter(
             models.Client.parqueo_id == p.id,
-            models.Client.is_paid == False
+            models.Client.is_active == True
         ).count()
         # Porcentaje de ocupación
         percent = (count / p.capacidad_maxima * 100) if p.capacidad_maxima > 0 else 0
@@ -343,41 +340,6 @@ def login(datos: LoginData, request: Request):
             status_code=401,
             detail=f"Error al verificar credenciales: {str(e)}"
         )
-@router.get("/scanner/clients-attendance/")
-def get_students_attendance(
-    plan: str,
-    date: date,
-    db: Session = Depends(get_db)
-):
-    if plan not in ["diario", "fin_de_semana", "ejecutivo"]:
-        raise HTTPException(status_code=400, detail="Plan inválido")
-
-    # Obtener alumnas activas del plan
-    clients = db.query(models.Client).filter(
-        models.Client.plan == plan,
-        models.Client.is_active.is_(True),
-        models.Client.is_graduated.is_(False)
-    ).order_by(models.Client.names).all()
-
-    result = []
-    for s in clients:
-        # Verificar estado de asistencia para la fecha
-        attendance_record = db.query(models.Assistance).filter(
-            models.Assistance.student_id == s.idclient,
-            models.Assistance.date == date
-        ).first()
-
-        is_present = attendance_record.assistance if attendance_record else False
-
-        result.append({
-            "idclient": s.idclient,
-            "names": s.names,
-            "lastnames": s.lastnames,
-            # Photo removed
-            "is_present": is_present
-        })
-
-    return result
 
 @router.post("/assistance/{identifier}")
 def update_attendance(
@@ -398,22 +360,27 @@ def update_attendance(
         )
 
     if Client.is_paid:
-        raise HTTPException(
-            status_code=400,
-            detail=f"El vehiculo {Client.idclient} ya ha realizado su pago de salida"
-        )
+        # Si ya pagó, este scan marca la SALIDA física
+        Client.is_active = False
+        db.commit()
+        return {
+            "status": "exited",
+            "Client_id": Client.idclient,
+            "client_name": Client.names if Client.names else "Consumidor Final",
+            "message": "Salida procesada correctamente. ¡Buen viaje!"
+        }
 
     # En lugar de Assistance, usamos la lógica de Payment para "Salida" (Checkout)
     # Buscamos un registro de pago pendiente para este cliente
     record = db.query(models.Payment).filter(
-        models.Payment.student_id == Client.idclient,
+        models.Payment.Client_id == Client.idclient,
         models.Payment.is_paid == False
     ).first()
 
     if not record:
         # Si no existe, lo creamos (esto registra la "hora de salida" actual)
         record = models.Payment(
-            student_id=Client.idclient,
+            Client_id=Client.idclient,
             lastscanhour=get_now_gt(),
             is_paid=False
         )
@@ -453,7 +420,7 @@ def update_attendance(
     
     return {
         "status": "ok",
-        "student_id": Client.idclient,
+        "Client_id": Client.idclient,
         "client_name": Client.names if Client.names else "Consumidor Final",
         "client_nit": Client.nit if Client.nit else "C/F",
         "lastscanhour": record.lastscanhour.isoformat(),

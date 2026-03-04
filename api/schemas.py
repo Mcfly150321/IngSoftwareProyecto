@@ -11,11 +11,11 @@ class PaymentBase(BaseModel):
     is_paid: bool = False
 
 class PaymentCreate(PaymentBase):
-    student_id: str
+    Client_id: str
 
 class PaymentSchema(PaymentBase):
     id: int
-    student_id: str
+    Client_id: str
 
     class Config:
         from_attributes = True
@@ -42,20 +42,21 @@ class TarifaSchema(TarifaBase):
         from_attributes = True
 
 # 4. ESTUDIANTES (Clientes)
-class StudentBase(BaseModel):
+class ClientBase(BaseModel):
     names: Optional[str] = None
     lastnames: Optional[str] = None
     nit: Optional[str] = None
     phone: Optional[str] = None
     parqueo_id: Optional[int] = None
 
-class StudentCreate(StudentBase):
+class ClientCreate(ClientBase):
     pass
 
-class StudentSchema(StudentBase):
+class ClientSchema(ClientBase):
     idclient: str
     is_created: Optional[datetime] = None
     is_paid: bool = False
+    is_active: bool = True
     parqueo: Optional[ParqueoSchema] = None
 
     class Config:

@@ -82,11 +82,29 @@ async function loadParqueosOptions() {
 async function checkConnectionStatus() {
     const dot = document.getElementById('conn-dot');
     const text = document.getElementById('conn-text');
+    const startTime = performance.now();
     try {
         const res = await fetch(`${API_URL}/ping`);
+        const endTime = performance.now();
+        const latency = Math.round(endTime - startTime);
+
         if (res.ok) {
-            dot.style.background = '#10b981';
-            text.textContent = 'Conectado';
+            let status = 'Excelente';
+            let color = '#10b981'; // Green
+
+            if (latency > 500) {
+                status = 'Muy Lenta';
+                color = '#f43f5e'; // Rose/Red
+            } else if (latency > 300) {
+                status = 'Lenta';
+                color = '#f59e0b'; // Amber
+            } else if (latency > 150) {
+                status = 'Decente';
+                color = '#3b82f6'; // Blue
+            }
+
+            dot.style.background = color;
+            text.textContent = `Conectado (${latency}ms - ${status})`;
         } else {
             throw new Error();
         }
@@ -189,7 +207,7 @@ function initRegistrationForm() {
     if (!checkboxCF || !checkboxCliente || !regForm) return;
 
     const updateFormVisibility = () => {
-        const inputs = containerCliente.querySelectorAll('input');
+        const inputs = containerCliente.querySelectorAll('input:not(#phone)');
         if (checkboxCliente.checked) {
             containerCliente.style.display = 'contents';
             inputs.forEach(i => i.setAttribute('required', ''));
@@ -364,8 +382,13 @@ async function onScanSuccessPagos(decodedText) {
             
             if (!res.ok) throw new Error(data.detail || "ID no válido o vehículo ya pagado");
 
-            playBeepScanner();
-            showResultUI_Pagos(data);
+            if (data.status === "exited") {
+                playBeepScanner();
+                showResultUI_ExitSuccess(data);
+            } else {
+                playBeepScanner();
+                showResultUI_Pagos(data);
+            }
         } catch (err) {
             playErrorBeepScanner();
             showResultUI_Error(err.message);
@@ -382,7 +405,7 @@ function showResultUI_Pagos(data) {
     const btnNext = document.getElementById("btnNext-scanner");
     const btnConfirm = document.getElementById("btnConfirmPay-scanner");
 
-    currentScanId = data.student_id;
+    currentScanId = data.Client_id;
     resultName.textContent = data.client_name;
     
     // Fill Invoice Details
@@ -398,6 +421,32 @@ function showResultUI_Pagos(data) {
     overlay.classList.add("active");
     successCircle.style.display = "flex";
     errorCircle.style.display = "none";
+}
+
+function showResultUI_ExitSuccess(data) {
+    const overlay = document.getElementById("resultOverlay-scanner");
+    const successCircle = document.getElementById("successCircle-scanner");
+    const errorCircle = document.getElementById("errorCircle-scanner");
+    const resultName = document.getElementById("scanResultName-scanner");
+    const invoiceDetails = document.getElementById("invoice-details-scanner");
+    const btnNext = document.getElementById("btnNext-scanner");
+    const btnConfirm = document.getElementById("btnConfirmPay-scanner");
+
+    resultName.textContent = `${data.client_name}: ${data.message}`;
+    invoiceDetails.style.display = "none";
+    btnNext.style.display = "block";
+    btnConfirm.style.display = "none";
+
+    overlay.classList.add("active");
+    successCircle.style.display = "flex";
+    errorCircle.style.display = "none";
+
+    updateDashboardStats();
+    
+    // Auto reset for checkout
+    setTimeout(() => {
+        resetForNextScanner();
+    }, 2000);
 }
 
 function showResultUI_Error(msg) {
@@ -458,7 +507,7 @@ async function confirmCurrentPayment() {
 
             // Auto-reset after 1.5 seconds
             setTimeout(() => {
-                if (currentScanId === data.student_id) { // Solo si no han escaneado a alguien más (seguridad)
+                if (currentScanId === data.Client_id) { // Solo si no han escaneado a alguien más (seguridad)
                     resetForNextScanner();
                 }
             }, 1500);
@@ -466,4 +515,15 @@ async function confirmCurrentPayment() {
             alert(err.message);
         }
     });
+}
+async function closeAllTransactions() {
+    await stopScannerExplicitScanner();
+    document.getElementById("resultOverlay-scanner").classList.remove("active");
+    document.getElementById("invoice-details-scanner").style.display = "none";
+    isProcessing_Asistencia = false;
+    currentScanId = null;
+    
+    // Reset message
+    const msgEl = document.getElementById("message-scanner");
+    if (msgEl) msgEl.textContent = "";
 }

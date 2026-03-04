@@ -11,3 +11,6 @@ def hashear_carnet(idclient):
     # Convertir a Hexadecimal (Opción A)
     res_hex = res_phc.encode('utf-8').hex()
     return res_hex
+
+def hash_contra(contra):
+    return ph.hash(contra)

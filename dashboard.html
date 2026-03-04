@@ -17,7 +17,7 @@
         <aside class="sidebar">
             <div class="logo">
                 <i class="fas fa-graduation-cap"></i>
-                <span>Crea Imagen</span>
+                <span>Parqueos</span>
             </div>
             <nav>
                 <a href="#" class="nav-link active" data-target="dashboard">
@@ -101,6 +101,8 @@
                                     <label>NIT</label>
                                     <input type="number" id="nit" name="nit" required>
                                 </div>
+                            </div> <!-- Cierre datos cliente -->
+
                             <div class="form-group">
                                 <label for="phone">Celular</label>
                                 <input type="number" id="phone" name="phone" required>
@@ -182,6 +184,7 @@
                     <div style="display: flex; gap: 10px; margin-top: 1rem; flex-wrap: wrap;">
                         <button id="btnStartScanner-scanner" class="btn-primary" onclick="startScannerPagos()">📸 Abrir Escáner</button>
                         <button id="btnStopScanner-scanner" class="btn-primary" style="display:none; background-color:#ef4444;" onclick="stopScannerExplicitScanner()">⏹ Cerrar Cámara</button>
+                        <button id="btnCloseAll-scanner" class="btn-primary" style="background-color:#64748b; transition: all 0.3s;" onmouseover="this.style.boxShadow='0 8px 25px rgba(0,0,0,0.2)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.boxShadow='none'; this.style.transform='translateY(0)'" onclick="closeAllTransactions()">❌ Cerrar Transacciones</button>
                     </div>
 
                     <div id="message-scanner" style="margin-top: 1rem;"></div>
