@@ -337,67 +337,36 @@ def logout(request: Request):
 
 ph = PasswordHasher()
 
-# Cargar usuarios desde environment
-admin_user = os.getenv("USER")
-admin_password_hash = os.getenv("PASSWORD")
-
 class LoginData(BaseModel): 
     username: str
     password: str
 
 @router.post("/login")
-def login(datos: LoginData, request: Request):
-    # Validar que las variables de entorno estén configuradas
-    if not admin_user or not admin_password_hash:
-        print("ERROR: USER o PASSWORD no configurados en las variables de entorno.")
-        raise HTTPException(
-            status_code=500,
-            detail="Error de configuración del servidor: faltan credenciales."
-        )
+def login(datos: LoginData, request: Request, db: Session = Depends(get_db)):
+    # 1. Buscar empleado por username en la DB
+    empleado = db.query(models.Empleado).filter(
+        models.Empleado.user == datos.username
+    ).first()
 
-    # 1. Validar primero el usuario (¡Muy importante!)
-    if datos.username != admin_user:
-        raise HTTPException(
-            status_code=401,
-            detail="Usuario o contraseña incorrectos"
-        )
+    if not empleado:
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
-    # Comparar password con hash
+    # 2. Verificar contraseña con argon2
     try:
-        # Log para depuración (¡No imprimir el hash completo ni el password en producción!)
-        print(f"DEBUG: Intentando login para usuario: {datos.username}")
-        if not admin_password_hash:
-            print("DEBUG: admin_password_hash es None o vacío")
-        else:
-            print(f"DEBUG: admin_password_hash cargado (empieza con {admin_password_hash[:10]}...)")
-            
-        ph.verify(admin_password_hash, datos.password)
-        
-        # ✅ Login exitoso: Seteamos la sesión firmada
-        request.session["session_user"] = admin_user
-        
-        return {
-            "success": True,
-            "mensaje": "Login exitoso",
-            "username": admin_user
-        }
-        
+        ph.verify(empleado.password_hash, datos.password)
     except VerifyMismatchError:
-        # ❌ Contraseña incorrecta
-        raise HTTPException(
-            status_code=401,
-            detail="Contraseña incorrecta"
-        )
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
     except Exception as e:
-        # Cualquier otro error (ej: hash malformado)
-        import traceback
-        error_trace = traceback.format_exc()
-        print(f"Login error detail: {str(e)}")
-        print(f"Full traceback: {error_trace}")
-        raise HTTPException(
-            status_code=401,
-            detail=f"Error al verificar credenciales: {str(e)}"
-        )
+        raise HTTPException(status_code=401, detail=f"Error al verificar credenciales: {str(e)}")
+
+    # 3. Login exitoso
+    request.session["session_user"] = empleado.user
+    return {
+        "success": True,
+        "mensaje": "Login exitoso",
+        "username": empleado.user,
+        "rol": empleado.rol
+    }
 
 @router.post("/assistance/{identifier}")
 def update_attendance(
