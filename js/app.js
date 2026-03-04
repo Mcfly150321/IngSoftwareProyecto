@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Lógica inicial del formulario de registro
     initRegistrationForm();
     initParqueoForm();
+    initTarifaForm();
     
     // Iniciar monitoreo de conexión y stats
     updateDashboardStats();
