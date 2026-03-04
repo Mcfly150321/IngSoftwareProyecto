@@ -388,15 +388,10 @@ def update_attendance(
         )
 
     if Client.is_paid:
-        # Si ya pagó, este scan marca la SALIDA física
-        Client.is_active = False
-        db.commit()
-        return {
-            "status": "exited",
-            "Client_id": Client.idclient,
-            "client_name": Client.names if Client.names else "Consumidor Final",
-            "message": "Salida procesada correctamente. ¡Buen viaje!"
-        }
+        raise HTTPException(
+            status_code=400,
+            detail="Este vehículo ya realizó su pago. Use la estación de Salida para procesar la salida."
+        )
 
     # En lugar de Assistance, usamos la lógica de Payment para "Salida" (Checkout)
     # Buscamos un registro de pago pendiente para este cliente
@@ -457,6 +452,46 @@ def update_attendance(
         "total": total_calc
     }
 
+
+
+@router.post("/out/{identifier}")
+def process_exit(
+    identifier: str,
+    db: Session = Depends(get_db)
+):
+    """Endpoint exclusivo de la estación de Salida (Seguridad).
+    Solo permite salir si el vehículo ya pagó en la caja."""
+    Client = db.query(models.Client).filter(
+        models.Client.idclient == identifier
+    ).first()
+
+    if not Client:
+        raise HTTPException(
+            status_code=404,
+            detail="Vehículo no encontrado. Verifique el QR."
+        )
+
+    if not Client.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail="Este vehículo ya ha salido del parqueo."
+        )
+
+    if not Client.is_paid:
+        raise HTTPException(
+            status_code=402,
+            detail="Vehículo sin pago. Debe pasar por caja primero."
+        )
+
+    # Todo OK: marcar salida
+    Client.is_active = False
+    db.commit()
+    return {
+        "status": "exited",
+        "Client_id": Client.idclient,
+        "client_name": Client.names if Client.names else "Consumidor Final",
+        "message": "✅ Salida procesada. ¡Buen viaje!"
+    }
 
 
 app.include_router(router)

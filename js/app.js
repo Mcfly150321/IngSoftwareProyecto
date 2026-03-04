@@ -79,7 +79,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 'tarifasadd': 'Agregar Tarifas',
                 'empleadosadd': 'Agregar Empleado',
                 'inscripcion': 'Nuevo Ticket / Registro',
-                'pagos': 'Control de Pagos / Salida'
+                'pagos': 'Control de Pagos / Salida',
+                'salida': 'Salida del Parqueo'
             };
             pageTitle.textContent = titles[target] || 'Sistema Parqueo';
 
@@ -705,4 +706,108 @@ async function closeAllTransactions() {
     // Reset message
     const msgEl = document.getElementById("message-scanner");
     if (msgEl) msgEl.textContent = "";
+}
+
+/**
+ * SECCION: SALIDA (SCANNER DE SALIDA - ROL SEGURIDAD)
+ */
+let html5QrCode_Exit = null;
+let isProcessing_Exit = false;
+
+async function startExitScanner() {
+    if (html5QrCode_Exit) return;
+    html5QrCode_Exit = new Html5Qrcode("reader-exit");
+    const config = { fps: 20, qrbox: { width: 250, height: 250 } };
+
+    document.getElementById("btnStartScanner-exit").style.display = "none";
+    document.getElementById("btnStopScanner-exit").style.display = "inline-block";
+
+    try {
+        await html5QrCode_Exit.start(
+            { facingMode: "environment" },
+            config,
+            onScanSuccessExit
+        );
+    } catch (err) {
+        html5QrCode_Exit = null;
+        document.getElementById("btnStartScanner-exit").style.display = "inline-block";
+        document.getElementById("btnStopScanner-exit").style.display = "none";
+        const msgEl = document.getElementById("message-exit");
+        if (msgEl) msgEl.textContent = "❌ No se pudo iniciar la cámara.";
+    }
+}
+
+async function stopExitScanner() {
+    if (html5QrCode_Exit) {
+        try { await html5QrCode_Exit.stop(); } catch {}
+        html5QrCode_Exit = null;
+    }
+    document.getElementById("btnStartScanner-exit").style.display = "inline-block";
+    document.getElementById("btnStopScanner-exit").style.display = "none";
+}
+
+function resetExitScanner() {
+    const overlay = document.getElementById("resultOverlay-exit");
+    if (overlay) overlay.classList.remove("active");
+    const nameEl = document.getElementById("scanResultName-exit");
+    if (nameEl) nameEl.textContent = "";
+    const successCircle = document.getElementById("successCircle-exit");
+    const errorCircle = document.getElementById("errorCircle-exit");
+    if (successCircle) successCircle.style.display = "flex";
+    if (errorCircle) errorCircle.style.display = "none";
+    isProcessing_Exit = false;
+    stopExitScanner();
+}
+
+async function onScanSuccessExit(decodedText) {
+    if (isProcessing_Exit) return;
+    isProcessing_Exit = true;
+
+    if (audioCtx_Scanner.state === 'suspended') audioCtx_Scanner.resume();
+    await stopExitScanner();
+
+    setTimeout(async () => {
+        try {
+            const res = await fetch(`${API_URL}/out/${encodeURIComponent(decodedText)}`, { method: "POST" });
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.detail || "Error al procesar salida");
+
+            playBeepScanner();
+            // Mostrar éxito
+            const overlay = document.getElementById("resultOverlay-exit");
+            const successCircle = document.getElementById("successCircle-exit");
+            const errorCircle = document.getElementById("errorCircle-exit");
+            const nameEl = document.getElementById("scanResultName-exit");
+
+            nameEl.textContent = `${data.client_name}: ${data.message}`;
+            successCircle.style.display = "flex";
+            errorCircle.style.display = "none";
+            overlay.classList.add("active");
+            updateDashboardStats();
+
+            // Auto-reset 2 segundos
+            setTimeout(() => resetExitScanner(), 2000);
+
+        } catch (err) {
+            playErrorBeepScanner();
+            const overlay = document.getElementById("resultOverlay-exit");
+            const successCircle = document.getElementById("successCircle-exit");
+            const errorCircle = document.getElementById("errorCircle-exit");
+            const nameEl = document.getElementById("scanResultName-exit");
+
+            nameEl.textContent = err.message;
+            successCircle.style.display = "none";
+            errorCircle.style.display = "flex";
+            overlay.classList.add("active");
+            isProcessing_Exit = false;
+
+            // Auto-reiniciar cámara al error para el siguiente scan
+            setTimeout(() => {
+                overlay.classList.remove("active");
+                isProcessing_Exit = false;
+                startExitScanner();
+            }, 2500);
+        }
+    }, 300);
 }

@@ -33,10 +33,13 @@
                     <i class="fas fa-user-tie"></i> Agregar Empleado
                 </a>
                 <a href="#" class="nav-link" data-target="inscripcion" data-roles="gerente,seguridad,maquina">
-                    <i class="fas fa-user-plus"></i> Registro
+                    <i class="fas fa-user-plus"></i> Obtener Ticket
                 </a>
                 <a href="#" class="nav-link" data-target="pagos" data-roles="gerente,seguridad,maquina">
-                    <i class="fas fa-check"></i> Pagos
+                    <i class="fas fa-check"></i> Pagar Ticket
+                </a>
+                <a href="#" class="nav-link" data-target="salida" data-roles="gerente,seguridad">
+                    <i class="fas fa-sign-out-alt"></i> Salida Parqueo
                 </a>
             </nav>
         </aside>
@@ -291,6 +294,52 @@
                     </div>
                 </div>
 
+            </section>
+
+            <!-- Salida Parqueo Section -->
+            <section id="salida" class="content-section">
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h2>🚗 Salida del Parqueo</h2>
+                    </div>
+                </div>
+
+                <!-- Scanner de Salida -->
+                <div class="card" id="markingSection-exit">
+                    <h2 style="margin-bottom: 1.5rem;">📷 Escanear Ticket de Salida</h2>
+
+                    <div id="scannerWrapper-exit">
+                        <div id="reader-exit"></div>
+
+                        <div id="resultOverlay-exit">
+                            <div class="result-container-scanner">
+                                <div id="successCircle-exit" class="icon-circle-scanner success-bg-scanner">
+                                    <svg class="icon-svg-scanner" viewBox="0 0 52 52">
+                                        <circle cx="26" cy="26" r="25" fill="none"/>
+                                        <path class="checkmark-path-scanner" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                                    </svg>
+                                </div>
+                                <div id="errorCircle-exit" class="icon-circle-scanner error-bg-scanner" style="display:none;">
+                                    <svg class="icon-svg-scanner" viewBox="0 0 52 52">
+                                        <circle cx="26" cy="26" r="25" fill="none"/>
+                                        <path class="error-x-path1-scanner" fill="none" d="M16 16l20 20"/>
+                                        <path class="error-x-path2-scanner" fill="none" d="M36 16l-20 20"/>
+                                    </svg>
+                                </div>
+                                <div id="scanResultName-exit" class="result-name-scanner"></div>
+                                <button id="btnNext-exit" class="next-btn-scanner" onclick="resetExitScanner()">Siguiente Vehículo</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; margin-top: 1rem; flex-wrap: wrap;">
+                        <button id="btnStartScanner-exit" class="btn-primary" onclick="startExitScanner()">📸 Abrir Escáner</button>
+                        <button id="btnStopScanner-exit" class="btn-primary" style="display:none; background-color:#ef4444;" onclick="stopExitScanner()">⏹ Cerrar Cámara</button>
+                        <button class="btn-primary" style="background-color:#64748b;" onclick="resetExitScanner()">❌ Cerrar</button>
+                    </div>
+
+                    <div id="message-exit" style="margin-top: 1rem;"></div>
+                </div>
             </section>
 
     <!-- Scripts -->
