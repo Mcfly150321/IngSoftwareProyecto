@@ -52,3 +52,16 @@ class Tarifa(Base):
     nombre = Column(String, unique=True) # Tarifa 1, Tarifa 2
     costo = Column(Float)
 
+
+class Empleado(Base):
+    __tablename__ = "empleados"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombres = Column(String, nullable=False)
+    apellidos = Column(String, nullable=False)
+    cui = Column(String, unique=True, nullable=False)
+    numero = Column(String, nullable=False)
+    edad = Column(Integer, nullable=False)
+    rol = Column(String, nullable=False)  # Gerente, Seguridad, Maquina
+    user = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)

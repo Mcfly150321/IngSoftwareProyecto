@@ -29,6 +29,9 @@
                 <a href="#" class="nav-link" data-target="tarifasadd">
                     <i class="fas fa-plus"></i> Agregar Tarifa
                 </a>
+                <a href="#" class="nav-link" data-target="empleadosadd">
+                    <i class="fas fa-user-tie"></i> Agregar Empleado
+                </a>
                 <a href="#" class="nav-link" data-target="inscripcion">
                     <i class="fas fa-user-plus"></i> Registro
                 </a>
@@ -106,6 +109,60 @@
                             <input type="number" id="costotarif" name="costotarif" required>
                         </div>
                         <button type="submit" class="btn-primary" id = "submittarifa">Agregar Tarifa</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Empleados Section -->
+            <section id="empleadosadd" class="content-section">
+                <div class="card">
+                    <h2>👷 Agregar Empleado</h2>
+                    <form id="add-empleado-form" class="form-grid">
+                        <div class="form-group">
+                            <label for="emp-nombres">Nombres</label>
+                            <input type="text" id="emp-nombres" name="nombres" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="emp-apellidos">Apellidos</label>
+                            <input type="text" id="emp-apellidos" name="apellidos" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="emp-cui">CUI</label>
+                            <input type="number" id="emp-cui" name="cui" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="emp-numero">Número de celular</label>
+                            <input type="number" id="emp-numero" name="numero" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="emp-edad">Edad</label>
+                            <input type="number" id="emp-edad" name="edad" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="emp-rol">Rol</label>
+                            <select id="emp-rol" name="rol" required>
+                                <option value="">-- Seleccione un rol --</option>
+                                <option value="Gerente">Gerente</option>
+                                <option value="Seguridad">Seguridad</option>
+                                <option value="Maquina">Maquina</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="emp-user">Usuario</label>
+                            <input type="text" id="emp-user" name="user" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="emp-password">Contraseña</label>
+                            <input type="password" id="emp-password" name="password" required oninput="checkEmpPasswords()">
+                        </div>
+                        <div class="form-group">
+                            <label for="emp-password2">Confirmar Contraseña</label>
+                            <input type="password" id="emp-password2" name="password2" required oninput="checkEmpPasswords()">
+                            <small id="emp-pass-msg" style="color:#ef4444; display:none;">Las contraseñas no coinciden</small>
+                        </div>
+                        <div style="grid-column: 1 / -1;">
+                            <button type="submit" class="btn-primary" id="submitEmpleado" disabled>➕ Inscribir Empleado</button>
+                        </div>
                     </form>
                 </div>
             </section>

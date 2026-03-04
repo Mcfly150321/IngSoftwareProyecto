@@ -67,3 +67,27 @@ class ClientSchema(ClientBase):
     class Config:
         from_attributes = True
 
+
+# 5. EMPLEADOS
+class EmpleadoCreate(BaseModel):
+    nombres: str
+    apellidos: str
+    cui: str
+    numero: str
+    edad: int
+    rol: str
+    user: str
+    password: str
+
+class EmpleadoSchema(BaseModel):
+    id: int
+    nombres: str
+    apellidos: str
+    cui: str
+    numero: str
+    edad: int
+    rol: str
+    user: str
+
+    class Config:
+        from_attributes = True

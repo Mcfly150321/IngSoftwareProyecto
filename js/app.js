@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'dashboard': 'Dashboard Parqueo',
                 'parqueosadd': 'Agregar Parqueo',
                 'tarifasadd': 'Agregar Tarifas',
+                'empleadosadd': 'Agregar Empleado',
                 'inscripcion': 'Nuevo Ticket / Registro',
                 'pagos': 'Control de Pagos / Salida'
             };
@@ -55,6 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initRegistrationForm();
     initParqueoForm();
     initTarifaForm();
+    initEmpleadoForm();
     
     // Iniciar monitoreo de conexión y stats
     updateDashboardStats();
@@ -237,6 +239,66 @@ function initParqueoForm() {
 
 
 
+
+/** seccion de add empleado */
+function checkEmpPasswords() {
+    const p1 = document.getElementById('emp-password').value;
+    const p2 = document.getElementById('emp-password2').value;
+    const btn = document.getElementById('submitEmpleado');
+    const msg = document.getElementById('emp-pass-msg');
+
+    if (p2 === '') {
+        msg.style.display = 'none';
+        btn.disabled = true;
+    } else if (p1 !== p2) {
+        msg.style.display = 'block';
+        btn.disabled = true;
+    } else {
+        msg.style.display = 'none';
+        btn.disabled = false;
+    }
+}
+
+function initEmpleadoForm() {
+    const form = document.getElementById('add-empleado-form');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('submitEmpleado');
+        await withLoading(submitBtn, async () => {
+            const fd = new FormData(form);
+            const data = Object.fromEntries(fd.entries());
+
+            const newEmpleado = {
+                nombres: data.nombres,
+                apellidos: data.apellidos,
+                cui: data.cui,
+                numero: data.numero,
+                edad: parseInt(data.edad),
+                rol: data.rol,
+                user: data.user,
+                password: data.password
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/newemploy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newEmpleado)
+                });
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.detail || 'Error al crear empleado');
+                alert(`✅ Empleado "${result.nombres} ${result.apellidos}" registrado exitosamente.`);
+                form.reset();
+                document.getElementById('submitEmpleado').disabled = true;
+            } catch (err) {
+                alert(`❌ Error: ${err.message}`);
+            }
+        });
+    });
+}
+
 /** seccion de add tarifa */
 function initTarifaForm() {
     const addTarifaForm = document.getElementById('add-tarifa-form');
@@ -265,7 +327,7 @@ function initTarifaForm() {
                 if (!res.ok) throw new Error(result.detail || 'Error al crear tarifa');
                 alert(`✅ Tarifa "${result.nombre}" creada exitosamente.`);
                 addTarifaForm.reset();
-                loadTarifasOptions();
+
             } catch (err) {
                 alert(`❌ Error: ${err.message}`);
             }

@@ -91,6 +91,35 @@ async def create_tarifa(
     db.refresh(db_tarifa)
     return db_tarifa
 
+@router.post("/newemploy", response_model=schemas.EmpleadoSchema)
+async def create_empleado(
+    empleado: schemas.EmpleadoCreate,
+    db: Session = Depends(get_db)
+):
+    # Verificar que el usuario o CUI no existan ya
+    existing = db.query(models.Empleado).filter(
+        (models.Empleado.user == empleado.user) | (models.Empleado.cui == empleado.cui)
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="El usuario o CUI ya existe en el sistema")
+
+    hashed_pwd = ph.hash(empleado.password)
+
+    db_empleado = models.Empleado(
+        nombres=empleado.nombres,
+        apellidos=empleado.apellidos,
+        cui=empleado.cui,
+        numero=empleado.numero,
+        edad=empleado.edad,
+        rol=empleado.rol,
+        user=empleado.user,
+        password_hash=hashed_pwd
+    )
+    db.add(db_empleado)
+    db.commit()
+    db.refresh(db_empleado)
+    return db_empleado
+
 @router.post("/clients/")
 async def create_Client(
     client: schemas.ClientCreate,
