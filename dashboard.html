@@ -32,7 +32,13 @@
                 <a href="#" class="nav-link" data-target="empleadosadd" data-roles="gerente">
                     <i class="fas fa-user-tie"></i> Agregar Empleado
                 </a>
-                <a href="#" class="nav-link" data-target="inscripcion" data-roles="gerente,seguridad,maquina">
+                <a href="#" class="nav-link" data-target="editarparqueos" data-roles="gerente">
+                    <i class="fas fa-edit"></i> Editar Parqueos
+                </a>
+                <a href="#" class="nav-link" data-target="editartarifas" data-roles="gerente">
+                    <i class="fas fa-tags"></i> Editar Tarifas
+                </a>
+                <a href="#" class="nav-link" data-target="inscripcion" data-roles="gerente,seguridad">
                     <i class="fas fa-user-plus"></i> Obtener Ticket
                 </a>
                 <a href="#" class="nav-link" data-target="pagos" data-roles="gerente,seguridad,maquina">
@@ -108,11 +114,37 @@
                             <input type="text" id="nombretarifa" name="nombretarifa" required>
                         </div>
                         <div class="form-group">
-                            <label for="costotarif">Costo</label>
-                            <input type="number" id="costotarif" name="costotarif" required>
+                            <label for="costotarif">Costo (Q)</label>
+                            <input type="number" id="costotarif" name="costotarif" step="0.01" required>
                         </div>
-                        <button type="submit" class="btn-primary" id = "submittarifa">Agregar Tarifa</button>
+                        <div class="form-group">
+                            <label for="tiempotarif">Duración (minutos)</label>
+                            <input type="number" id="tiempotarif" name="tiempotarif" min="1" required>
+                        </div>
+                        <button type="submit" class="btn-primary" id="submittarifa">Agregar Tarifa</button>
                     </form>
+                </div>
+            </section>
+
+            <!-- Editar Parqueos Section -->
+            <section id="editarparqueos" class="content-section">
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                        <h2>🏢 Editar Parqueos</h2>
+                        <button class="btn-primary" onclick="loadParqueosEdit()">🔄 Actualizar lista</button>
+                    </div>
+                    <div id="parqueos-edit-list" style="display:grid; gap:1rem;"></div>
+                </div>
+            </section>
+
+            <!-- Editar Tarifas Section -->
+            <section id="editartarifas" class="content-section">
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                        <h2>💲 Editar Tarifas</h2>
+                        <button class="btn-primary" onclick="loadTarifasEdit()">🔄 Actualizar lista</button>
+                    </div>
+                    <div id="tarifas-edit-list" style="display:grid; gap:1rem;"></div>
                 </div>
             </section>
 

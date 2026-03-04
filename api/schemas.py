@@ -36,6 +36,7 @@ class ParqueoCreate(ParqueoBase):
 class TarifaBase(BaseModel):
     nombre: str
     costo: float
+    tiempo: int
 
 class TarifaSchema(TarifaBase):
     id: int

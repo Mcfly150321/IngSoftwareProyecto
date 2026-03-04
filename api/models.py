@@ -49,8 +49,9 @@ class Tarifa(Base):
     __tablename__ = "tarifas"
 
     id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, unique=True) # Tarifa 1, Tarifa 2
+    nombre = Column(String, unique=True)
     costo = Column(Float)
+    tiempo = Column(Integer, nullable=False)  # duración del ciclo en minutos
 
 
 class Empleado(Base):

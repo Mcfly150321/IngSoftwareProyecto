@@ -78,6 +78,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 'parqueosadd': 'Agregar Parqueo',
                 'tarifasadd': 'Agregar Tarifas',
                 'empleadosadd': 'Agregar Empleado',
+                'editarparqueos': 'Editar Parqueos',
+                'editartarifas': 'Editar Tarifas',
                 'inscripcion': 'Nuevo Ticket / Registro',
                 'pagos': 'Control de Pagos / Salida',
                 'salida': 'Salida del Parqueo'
@@ -87,8 +89,15 @@ document.addEventListener('DOMContentLoaded', function() {
             // Cargar datos según sección
             if (target === 'dashboard') updateDashboardStats();
             if (target === 'pagos') updatePagosUI();
+            if (target === 'editarparqueos') loadParqueosEdit();
+            if (target === 'editartarifas') loadTarifasEdit();
         });
     });
+
+    // Título de pestaña dinámico: Rol - Nombre
+    const tabRol = (sessionStorage.getItem('userRol') || '').toUpperCase();
+    const tabName = sessionStorage.getItem('userName') || '';
+    if (tabRol && tabName) document.title = `${tabRol} - ${tabName} | Parqueos`;
 
     // Lógica inicial del formulario de registro
     applyRolFilter();
@@ -116,11 +125,124 @@ async function loadParqueosOptions() {
         parqueos.forEach(p => {
             const opt = document.createElement('option');
             opt.value = p.id;
-            opt.textContent = `${p.nombre} (Cap: ${p.capacidad_maxima})`;
+            
+            // p.ocupacion viene del endpoint modificado
+            const cap = p.capacidad_maxima;
+            const oc = p.ocupacion || 0;
+            const full = oc >= cap;
+            
+            if (full) {
+                opt.textContent = `❌ ${p.nombre} (LLENO: ${oc}/${cap})`;
+                opt.disabled = true;
+                opt.style.color = 'red';
+            } else {
+                opt.textContent = `✅ ${p.nombre} (Disp: ${cap - oc})`;
+            }
+            
             select.appendChild(opt);
         });
     } catch (e) {
         select.innerHTML = '<option value="">Error al cargar parqueos</option>';
+    }
+}
+
+/** EDITAR PARQUEOS Y TARIFAS (ROL GERENTE) */
+
+async function loadParqueosEdit() {
+    const container = document.getElementById('parqueos-edit-list');
+    if (!container) return;
+    container.innerHTML = '<p>Cargando...</p>';
+    try {
+        const res = await fetch(`${API_URL}/parqueos/`);
+        const parqueos = await res.json();
+        container.innerHTML = parqueos.map(p => `
+            <div class="card" style="padding:1rem; border:1px solid var(--border);">
+                <div class="form-grid" style="grid-template-columns:1fr 1fr auto;">
+                    <div class="form-group">
+                        <label>Nombre</label>
+                        <input type="text" id="p-nombre-${p.id}" value="${p.nombre}">
+                    </div>
+                    <div class="form-group">
+                        <label>Capacidad Máxima</label>
+                        <input type="number" id="p-cap-${p.id}" value="${p.capacidad_maxima}">
+                    </div>
+                    <div style="display:flex; align-items:flex-end;">
+                        <button class="btn-primary" onclick="saveParqueo(${p.id})">💾 Guardar</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        container.innerHTML = `<p style="color:red;">❌ ${err.message}</p>`;
+    }
+}
+
+async function saveParqueo(id) {
+    const nombre = document.getElementById(`p-nombre-${id}`).value;
+    const cap = parseInt(document.getElementById(`p-cap-${id}`).value);
+    try {
+        const res = await fetch(`${API_URL}/parqueos/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, capacidad_maxima: cap })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.detail);
+        alert(`✅ Parqueo "${result.nombre}" actualizado.`);
+        loadParqueosOptions();
+    } catch (err) {
+        alert(`❌ ${err.message}`);
+    }
+}
+
+async function loadTarifasEdit() {
+    const container = document.getElementById('tarifas-edit-list');
+    if (!container) return;
+    container.innerHTML = '<p>Cargando...</p>';
+    try {
+        const res = await fetch(`${API_URL}/tarifas/`);
+        const tarifas = await res.json();
+        container.innerHTML = tarifas.map(t => `
+            <div class="card" style="padding:1rem; border:1px solid var(--border);">
+                <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr auto;">
+                    <div class="form-group">
+                        <label>Nombre</label>
+                        <input type="text" id="t-nombre-${t.id}" value="${t.nombre}">
+                    </div>
+                    <div class="form-group">
+                        <label>Costo (Q)</label>
+                        <input type="number" step="0.01" id="t-costo-${t.id}" value="${t.costo}">
+                    </div>
+                    <div class="form-group">
+                        <label>Duración (min)</label>
+                        <input type="number" id="t-tiempo-${t.id}" value="${t.tiempo}">
+                    </div>
+                    <div style="display:flex; align-items:flex-end;">
+                        <button class="btn-primary" onclick="saveTarifa(${t.id})">💾 Guardar</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        container.innerHTML = `<p style="color:red;">❌ ${err.message}</p>`;
+    }
+}
+
+async function saveTarifa(id) {
+    const nombre = document.getElementById(`t-nombre-${id}`).value;
+    const costo = parseFloat(document.getElementById(`t-costo-${id}`).value);
+    const tiempo = parseInt(document.getElementById(`t-tiempo-${id}`).value);
+    try {
+        const res = await fetch(`${API_URL}/tarifas/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, costo, tiempo })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.detail);
+        alert(`✅ Tarifa "${result.nombre}" actualizada (${result.tiempo} min = Q${result.costo}).`);
+    } catch (err) {
+        alert(`❌ ${err.message}`);
     }
 }
 
@@ -352,7 +474,8 @@ function initTarifaForm() {
 
             const newTarifa = {
                 nombre: data.nombretarifa,
-                costo: parseInt(data.costotarif)
+                costo: parseFloat(data.costotarif),
+                tiempo: parseInt(data.tiempotarif)
             };
 
             const url = `${API_URL}/newtarifa`;

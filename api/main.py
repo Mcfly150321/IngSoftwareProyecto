@@ -76,6 +76,51 @@ async def create_parqueo(
     db.refresh(db_parqueo)
     return db_parqueo
 
+@router.get("/parqueos/")
+def list_parqueos(db: Session = Depends(get_db)):
+    parqueos = db.query(models.Parqueo).all()
+    resultado = []
+    for p in parqueos:
+        # Contar vehículos activos en este parqueo
+        ocupados = db.query(models.Client).filter(
+            models.Client.parqueo_id == p.id,
+            models.Client.is_active == True
+        ).count()
+        resultado.append({
+            "id": p.id,
+            "nombre": p.nombre,
+            "capacidad_maxima": p.capacidad_maxima,
+            "ocupacion": ocupados
+        })
+    return resultado
+
+@router.put("/parqueos/{parqueo_id}", response_model=schemas.ParqueoSchema)
+def update_parqueo(parqueo_id: int, parqueo: schemas.ParqueoBase, db: Session = Depends(get_db)):
+    db_p = db.query(models.Parqueo).filter(models.Parqueo.id == parqueo_id).first()
+    if not db_p:
+        raise HTTPException(status_code=404, detail="Parqueo no encontrado")
+    db_p.nombre = parqueo.nombre
+    db_p.capacidad_maxima = parqueo.capacidad_maxima
+    db.commit()
+    db.refresh(db_p)
+    return db_p
+
+@router.get("/tarifas/")
+def list_tarifas(db: Session = Depends(get_db)):
+    return db.query(models.Tarifa).order_by(models.Tarifa.tiempo.desc()).all()
+
+@router.put("/tarifas/{tarifa_id}", response_model=schemas.TarifaSchema)
+def update_tarifa(tarifa_id: int, tarifa: schemas.TarifaBase, db: Session = Depends(get_db)):
+    db_t = db.query(models.Tarifa).filter(models.Tarifa.id == tarifa_id).first()
+    if not db_t:
+        raise HTTPException(status_code=404, detail="Tarifa no encontrada")
+    db_t.nombre = tarifa.nombre
+    db_t.costo = tarifa.costo
+    db_t.tiempo = tarifa.tiempo
+    db.commit()
+    db.refresh(db_t)
+    return db_t
+
 @router.post("/newtarifa")
 async def create_tarifa(
     tarifa: schemas.TarifaCreate, # Asegúrate que schemas esté importado correctamente
@@ -84,7 +129,8 @@ async def create_tarifa(
     # CORRECCIÓN: Usar costo que es como viene del frontend/esquema
     db_tarifa = models.Tarifa(
         nombre=tarifa.nombre,
-        costo=tarifa.costo
+        costo=tarifa.costo,
+        tiempo=tarifa.tiempo
     )
     db.add(db_tarifa)
     db.commit()
@@ -412,29 +458,29 @@ def update_attendance(
         # Si ya existía, actualizamos la hora de salida (último scan)
         record.lastscanhour = get_now_gt()
         
-    # Calcular costo según dos tarifas:
-    # Por cada 5 minutos cobramos tarifa2
-    # Fraccion superior a 2 min paga tarifa 1 adicional
+    # Calcular costo dinámicamente usando las tarifas registradas en DB
+    # Ordenadas de mayor a menor tiempo (greedy: ciclos grandes primero)
     total_calc = 0.0
     if Client.is_created and record.lastscanhour:
         duration = record.lastscanhour - Client.is_created
-        seconds = int(duration.total_seconds())
-        
-        # Ciclo de 5 minutos (300 segundos)
-        ciclos_5min = seconds // 300
-        minutos_restantes = (seconds % 300) / 60
-        
-        # Buscar tarifas en DB
-        t1 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa1").first()
-        t2 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa2").first()
-        
-        cost1 = t1.costo if t1 else 5.0  # Fallback
-        cost2 = t2.costo if t2 else 10.0 # Fallback
-        
-        total_calc = ciclos_5min * cost2
-        if minutos_restantes > 2:
-            total_calc += cost1
-            
+        total_seconds = int(duration.total_seconds())
+        minutos_totales = total_seconds // 60  # Solo minutos completos
+
+        # Cargar tarifas ordenadas de mayor a menor tiempo
+        tarifas = db.query(models.Tarifa).order_by(models.Tarifa.tiempo.desc()).all()
+
+        minutos_restantes = minutos_totales
+        for tarifa in tarifas:
+            if tarifa.tiempo and tarifa.tiempo > 0:
+                ciclos = minutos_restantes // tarifa.tiempo
+                total_calc += ciclos * tarifa.costo
+                minutos_restantes = minutos_restantes % tarifa.tiempo
+
+        # Minutos sueltos que no completaron ningún ciclo: cobrar la tarifa más pequeña
+        if minutos_restantes > 0 and tarifas:
+            tarifa_min = min(tarifas, key=lambda t: t.tiempo)
+            total_calc += tarifa_min.costo
+
         record.total = total_calc
     else:
         total_calc = 0.0
