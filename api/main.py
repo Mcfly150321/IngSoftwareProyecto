@@ -61,6 +61,19 @@ def get_db():
 def ping():
     return {"status": "ok"}
 
+@router.post("/newparqueo")
+async def create_parqueo(
+    parqueo: schemas.ParqueoCreate,
+    db: Session = Depends(get_db)
+):
+    db_parqueo = models.Parqueo(
+        nombre=parqueo.nombre,
+        capacidad=parqueo.capacidad
+    )
+    db.add(db_parqueo)
+    db.commit()
+    db.refresh(db_parqueo)
+    return db_parqueo
 
 @router.post("/clients/")
 async def create_Client(
