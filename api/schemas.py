@@ -30,6 +30,8 @@ class ParqueoSchema(ParqueoBase):
 
     class Config:
         from_attributes = True
+class ParqueoCreate(ParqueoBase):
+    pass
 
 class TarifaBase(BaseModel):
     nombre: str

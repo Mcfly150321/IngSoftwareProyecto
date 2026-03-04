@@ -63,12 +63,13 @@ def ping():
 
 @router.post("/newparqueo")
 async def create_parqueo(
-    parqueo: schemas.ParqueoCreate,
+    parqueo: schemas.ParqueoCreate, # Asegúrate que schemas esté importado correctamente
     db: Session = Depends(get_db)
 ):
+    # CORRECCIÓN: Usar capacidad_maxima que es como viene del frontend/esquema
     db_parqueo = models.Parqueo(
         nombre=parqueo.nombre,
-        capacidad=parqueo.capacidad
+        capacidad=parqueo.capacidad_maxima # <--- Cambiado para coincidir con el Schema
     )
     db.add(db_parqueo)
     db.commit()
