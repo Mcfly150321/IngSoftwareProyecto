@@ -76,6 +76,21 @@ async def create_parqueo(
     db.refresh(db_parqueo)
     return db_parqueo
 
+@router.post("/newtarifa")
+async def create_tarifa(
+    tarifa: schemas.TarifaCreate, # Asegúrate que schemas esté importado correctamente
+    db: Session = Depends(get_db)
+):
+    # CORRECCIÓN: Usar costo que es como viene del frontend/esquema
+    db_tarifa = models.Tarifa(
+        nombre=tarifa.nombre,
+        costo=tarifa.costo
+    )
+    db.add(db_tarifa)
+    db.commit()
+    db.refresh(db_tarifa)
+    return db_tarifa
+
 @router.post("/clients/")
 async def create_Client(
     client: schemas.ClientCreate,

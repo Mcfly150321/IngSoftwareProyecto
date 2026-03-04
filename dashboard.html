@@ -26,6 +26,9 @@
                 <a href="#" class="nav-link" data-target="parqueosadd">
                     <i class="fas fa-plus"></i> Agregar Parqueo
                 </a>
+                <a href="#" class="nav-link" data-target="tarifasadd">
+                    <i class="fas fa-plus"></i> Agregar Tarifa
+                </a>
                 <a href="#" class="nav-link" data-target="inscripcion">
                     <i class="fas fa-user-plus"></i> Registro
                 </a>
@@ -73,7 +76,7 @@
                     </div>
                 </div>
             </section>
-            
+
             <section id ="parqueosadd" class="content-section">
                 <div class="card">
                     <h2>Agregar Parqueo</h2>
@@ -90,6 +93,23 @@
                     </form>
                 </div>
             </section>
+            <section id ="tarifasadd" class="content-section">
+                <div class="card">
+                    <h2>Agregar Tarifa</h2>
+                    <form id="add-tarifa-form">
+                        <div class="form-group">
+                            <label for="nombretarifa">Nombre</label>
+                            <input type="text" id="nombretarifa" name="nombretarifa" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="costotarif">Costo</label>
+                            <input type="number" id="costotarif" name="costotarif" required>
+                        </div>
+                        <button type="submit" class="btn-primary" id = "submittarifa">Agregar Tarifa</button>
+                    </form>
+                </div>
+            </section>
+
             <!-- Inscripcion Section -->
             <section id="inscripcion" class="content-section">
                 <div class="card">

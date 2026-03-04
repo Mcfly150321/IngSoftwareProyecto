@@ -42,6 +42,9 @@ class TarifaSchema(TarifaBase):
 
     class Config:
         from_attributes = True
+        
+class TarifaCreate(TarifaBase):
+    pass
 
 # 4. ESTUDIANTES (Clientes)
 class ClientBase(BaseModel):

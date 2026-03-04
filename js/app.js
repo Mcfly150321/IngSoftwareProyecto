@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const titles = {
                 'dashboard': 'Dashboard Parqueo',
                 'parqueosadd': 'Agregar Parqueo',
+                'tarifasadd': 'Agregar Tarifas',
                 'inscripcion': 'Nuevo Ticket / Registro',
                 'pagos': 'Control de Pagos / Salida'
             };
@@ -233,6 +234,43 @@ function initParqueoForm() {
     });
 }
 
+
+
+/** seccion de add tarifa */
+function initTarifaForm() {
+    const addTarifaForm = document.getElementById('add-tarifa-form');
+    if (!addTarifaForm) return;
+
+    addTarifaForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('submittarifa');
+        await withLoading(submitBtn, async () => {
+            const formData = new FormData(addTarifaForm);
+            const data = Object.fromEntries(formData.entries());
+
+            const newTarifa = {
+                nombre: data.nombretarifa,
+                costo: parseInt(data.costotarif)
+            };
+
+            const url = `${API_URL}/newtarifa`;
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newTarifa)
+                });
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.detail || 'Error al crear tarifa');
+                alert(`✅ Tarifa "${result.nombre}" creada exitosamente.`);
+                addTarifaForm.reset();
+                loadTarifasOptions();
+            } catch (err) {
+                alert(`❌ Error: ${err.message}`);
+            }
+        });
+    });
+}
 
 /**
  * SECCION: REGISTRO (NUEVO TICKET)
