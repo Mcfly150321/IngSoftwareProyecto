@@ -73,10 +73,14 @@ document.getElementById('formLogin').addEventListener('submit', async (e) => {
                     waterFill.style.height = '100%';
                     
                     // 4. Mostrar Bienvenida
-                    welcomeText.textContent = `¡Bienvenida ${data.username}!`;
+                    welcomeText.textContent = `¡Bienvenid@ ${data.first_name}!`;
                     welcomeText.classList.add('show');
                     
                     // 5. Redirigir INTELIGENTE: Esperar a que la DB responda Y que pase el tiempo mínimo
+                    // Guardar rol y nombre en sessionStorage para filtrar secciones del dashboard
+                    sessionStorage.setItem('userRol', (data.rol || '').toLowerCase());
+                    sessionStorage.setItem('userName', data.first_name || data.username || '');
+
                     Promise.all([dbWarmupPromise, minAnimationTime]).then(() => {
                         window.location.href = '/dashboard';
                     }).catch(() => {

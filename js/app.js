@@ -9,7 +9,44 @@ let chartDiarioInstance = null;
 let chartFindeInstance = null;
 
 function logout() {
+    sessionStorage.removeItem('userRol');
+    sessionStorage.removeItem('userName');
     window.location.href = '/logout';
+}
+
+/**
+ * FILTRADO POR ROL
+ * Lee userRol de sessionStorage y muestra solo los nav links y secciones permitidos.
+ * Gerente    → todo
+ * Seguridad  → Dashboard, Registro, Pagos
+ * Maquina    → Registro, Pagos
+ */
+function applyRolFilter() {
+    const rol = (sessionStorage.getItem('userRol') || '').toLowerCase();
+    const navLinks = document.querySelectorAll('.nav-link[data-roles]');
+
+    let firstVisibleTarget = null;
+
+    navLinks.forEach(link => {
+        const allowed = link.dataset.roles.split(',').map(r => r.trim().toLowerCase());
+        if (allowed.includes(rol)) {
+            link.style.display = '';
+            if (!firstVisibleTarget) firstVisibleTarget = link.dataset.target;
+        } else {
+            link.style.display = 'none';
+        }
+    });
+
+    // Si la sección activa quedó oculta, activar la primera disponible
+    const activeLink = document.querySelector('.nav-link.active');
+    if (activeLink) {
+        const activeRoles = (activeLink.dataset.roles || '').split(',').map(r => r.trim().toLowerCase());
+        if (!activeRoles.includes(rol) && firstVisibleTarget) {
+            // Simular clic en el primer link visible
+            const firstLink = document.querySelector(`.nav-link[data-target="${firstVisibleTarget}"]`);
+            if (firstLink) firstLink.click();
+        }
+    }
 }
 
 /** 
@@ -53,6 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Lógica inicial del formulario de registro
+    applyRolFilter();
     initRegistrationForm();
     initParqueoForm();
     initTarifaForm();

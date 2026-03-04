@@ -365,6 +365,7 @@ def login(datos: LoginData, request: Request, db: Session = Depends(get_db)):
         "success": True,
         "mensaje": "Login exitoso",
         "username": empleado.user,
+        "first_name": empleado.nombres.strip().split()[0],
         "rol": empleado.rol
     }
 
