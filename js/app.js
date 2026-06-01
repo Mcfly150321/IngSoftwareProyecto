@@ -218,7 +218,7 @@ async function saveParqueo(id) {
         const res = await fetch(`${API_URL}/parqueos/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, capacidad_maxima: cap })
+            body: JSON.stringify({ nombre, capacidad: cap })
         });
         const result = await res.json();
         if (!res.ok) throw new Error(result.detail);
@@ -232,11 +232,73 @@ async function saveParqueo(id) {
 async function loadTarifasEdit() {
     const container = document.getElementById('tarifas-edit-list');
     if (!container) return;
-    container.innerHTML = '<p>Edición de tarifas (Requiere actualización al nuevo esquema de DB con dropdowns de Vehículos y Unidades)</p>';
+    container.innerHTML = '<p>Cargando tarifas...</p>';
+    try {
+        const [resTarifas, resVehiculos, resUnidades] = await Promise.all([
+            fetch(`${API_URL}/tarifas/`),
+            fetch(`${API_URL}/tipos-vehiculo/`),
+            fetch(`${API_URL}/unidades-tiempo/`)
+        ]);
+        const tarifas = await resTarifas.json();
+        const vehiculos = await resVehiculos.json();
+        const unidades = await resUnidades.json();
+
+        container.innerHTML = tarifas.map(t => {
+            const vehOptions = vehiculos.map(v => 
+                `<option value="${v.id}" ${v.id === t.tipo_vehiculo_id ? 'selected' : ''}>${v.nombre}</option>`
+            ).join('');
+            const uniOptions = unidades.map(u => 
+                `<option value="${u.id}" ${u.id === t.unidad_tiempo_id ? 'selected' : ''}>${u.nombre}</option>`
+            ).join('');
+
+            return `
+            <div class="card" style="padding:1rem; border:1px solid var(--border); margin-bottom: 1rem;">
+                <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr auto; gap: 1rem; align-items: flex-end;">
+                    <div class="form-group">
+                        <label>Tipo de Vehículo</label>
+                        <select id="t-veh-${t.id}">
+                            ${vehOptions}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Unidad de Tiempo</label>
+                        <select id="t-uni-${t.id}">
+                            ${uniOptions}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Costo (Q)</label>
+                        <input type="number" step="0.01" id="t-costo-${t.id}" value="${t.costo}">
+                    </div>
+                    <div>
+                        <button class="btn-primary" onclick="saveTarifa(${t.id})">💾 Guardar</button>
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join('');
+    } catch (err) {
+        container.innerHTML = `<p style="color:red;">❌ ${err.message}</p>`;
+    }
 }
 
 async function saveTarifa(id) {
-    // Disabled until UI is updated for new schema
+    const tipo_vehiculo_id = parseInt(document.getElementById(`t-veh-${id}`).value);
+    const unidad_tiempo_id = parseInt(document.getElementById(`t-uni-${id}`).value);
+    const costo = parseFloat(document.getElementById(`t-costo-${id}`).value);
+    try {
+        const res = await fetch(`${API_URL}/tarifas/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tipo_vehiculo_id, unidad_tiempo_id, costo })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.detail || "Error al actualizar tarifa");
+        alert(`✅ Tarifa actualizada exitosamente.`);
+        loadTarifasEdit();
+    } catch (err) {
+        alert(`❌ ${err.message}`);
+    }
 }
 
 async function checkConnectionStatus() {
@@ -369,10 +431,10 @@ function initParqueoForm() {
 
             const newParqueo = {
                 nombre: data.nombreparqueo,
-                capacidad_maxima: parseInt(data.capacidad_maxima)
+                capacidad: parseInt(data.capacidad_maxima)
             };
 
-            const url = `${API_URL}/newparqueo`;
+            const url = `${API_URL}/parqueos/`;
             try {
                 const res = await fetch(url, {
                     method: 'POST',
