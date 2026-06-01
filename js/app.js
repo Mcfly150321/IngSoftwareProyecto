@@ -114,58 +114,38 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateServerDateTime, 1000);
 });
 
-async 
 async function loadDropdowns() {
     try {
-                // 1. Obtener seqcode y client_id
-                const reqRes = await fetch(`${API_URL}/automata/client-request`, { method: 'POST' });
-                if (!reqRes.ok) throw new Error("Error generating client request");
-                const { seqcode, client_id } = await reqRes.json();
-                
-                // 2. Registrar cliente
-                clientData.seqcode = seqcode;
-                clientData.client_id = client_id;
-                
-                const clientRes = await fetch(`${API_URL}/automata/client`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(clientData)
-                });
-                
-                if (!clientRes.ok) {
-                    const errorData = await clientRes.json();
-                    throw new Error(errorData.detail || "Error al guardar registro del cliente");
-                }
+        const [resVehiculos, resUnidades] = await Promise.all([
+            fetch(`${API_URL}/tipos-vehiculo/`),
+            fetch(`${API_URL}/unidades-tiempo/`)
+        ]);
+        const vehiculos = await resVehiculos.json();
+        const unidades = await resUnidades.json();
 
-                // 3. Registrar entrada
-                const entRes = await fetch(`${API_URL}/automata/entrada-salida/${client_id}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tipo: "entrada" })
-                });
+        // Llenar tipo vehiculo en tarifa
+        const selTipoTarifa = document.getElementById('tipo_vehiculo_id_tarifa');
+        if (selTipoTarifa) {
+            selTipoTarifa.innerHTML = '<option value="">-- Seleccione tipo --</option>' + 
+                vehiculos.map(v => `<option value="${v.id}">${v.nombre}</option>`).join('');
+        }
 
-                if (!entRes.ok) {
-                    throw new Error("Error al registrar entrada en parqueo");
-                }
+        // Llenar unidad tiempo en tarifa
+        const selUnidadTarifa = document.getElementById('unidad_tiempo_id');
+        if (selUnidadTarifa) {
+            selUnidadTarifa.innerHTML = '<option value="">-- Seleccione unidad --</option>' + 
+                unidades.map(u => `<option value="${u.id}">${u.nombre}</option>`).join('');
+        }
 
-                // 4. Utilidad: Generar Ticket y mostrarlo
-                alert(`Ticket generado exitosamente: ${client_id}. Se generará el ticket digital...`);
-                
-                const ticketRes = await fetch(`${API_URL}/utilidades/ticket/${client_id}`);
-                if (ticketRes.ok) {
-                    const ticketData = await ticketRes.json();
-                    if (ticketData.ticket_url) {
-                        window.open(ticketData.ticket_url, '_blank');
-                    }
-                }
-
-                // Limpiar formulario y actualizar vista
-                regForm.reset();
-                updateDashboardStats();
-
-            } catch (err) {
-                alert(`Error: ${err.message}`);
-            }
+        // Llenar tipo vehiculo en registro de vehiculo
+        const selTipoReg = document.getElementById('tipo_vehiculo_id_reg');
+        if (selTipoReg) {
+            selTipoReg.innerHTML = '<option value="">-- Seleccione tipo --</option>' + 
+                vehiculos.map(v => `<option value="${v.id}">${v.nombre}</option>`).join('');
+        }
+    } catch (err) {
+        console.error("Error cargando dropdowns:", err);
+    }
 }
 
 async function loadParqueosOptions() {
@@ -566,8 +546,17 @@ function initRegistrationForm() {
                     throw new Error("Error al registrar entrada en parqueo");
                 }
 
-                alert(`Ticket generado exitosamente: ${client_id}`);
+                // 4. Utilidad: Generar Ticket y mostrarlo
+                alert(`Ticket generado exitosamente: ${client_id}. Se generará el ticket digital...`);
                 
+                const ticketRes = await fetch(`${API_URL}/utilidades/ticket/${client_id}`);
+                if (ticketRes.ok) {
+                    const ticketData = await ticketRes.json();
+                    if (ticketData.ticket_url) {
+                        window.open(ticketData.ticket_url, '_blank');
+                    }
+                }
+
                 // Limpiar formulario y actualizar vista
                 regForm.reset();
                 updateDashboardStats();
