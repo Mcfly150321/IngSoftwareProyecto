@@ -10,10 +10,10 @@ def generate_idticket(db: Session):
     # Suffix for the search (YYYYMMDD) - we want to match tickets from TODAY
     date_str = f"{year}{month:02d}{day:02d}"
 
-    # Busca el client_id más alto que empiece con la fecha de hoy
-    max_idticket = db.query(models.Client.client_id).filter(
-        models.Client.client_id.like(f"{date_str}%")
-    ).order_by(models.Client.client_id.desc()).first()
+    # Busca el client_id más alto que empiece con la fecha de hoy en la tabla de solicitudes
+    max_idticket = db.query(models.ClientRequest.client_id).filter(
+        models.ClientRequest.client_id.like(f"{date_str}%")
+    ).order_by(models.ClientRequest.client_id.desc()).first()
     
     if max_idticket:
         try:
