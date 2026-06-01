@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
@@ -27,6 +27,22 @@ def init_db():
     """Crea todas las tablas y carga los datos semilla si aún no existen."""
     from . import models
     Base.metadata.create_all(bind=engine)
+    
+    # Alternar restricciones de llave foránea en PostgreSQL para apuntar a client_requests
+    try:
+        with engine.connect() as conn:
+            # Dropear constraints viejas que apuntan a clients
+            conn.execute(text("ALTER TABLE entradas_salidas DROP CONSTRAINT IF EXISTS entradas_salidas_client_id_fkey;"))
+            conn.execute(text("ALTER TABLE transacciones DROP CONSTRAINT IF EXISTS transacciones_client_id_fkey;"))
+            # Crear nuevas constraints que apuntan a client_requests (permite entradas previas a registro)
+            conn.execute(text("ALTER TABLE entradas_salidas DROP CONSTRAINT IF EXISTS entradas_salidas_client_id_requests_fkey;"))
+            conn.execute(text("ALTER TABLE entradas_salidas ADD CONSTRAINT entradas_salidas_client_id_requests_fkey FOREIGN KEY (client_id) REFERENCES client_requests(client_id) ON DELETE CASCADE;"))
+            conn.execute(text("ALTER TABLE transacciones DROP CONSTRAINT IF EXISTS transacciones_client_id_requests_fkey;"))
+            conn.execute(text("ALTER TABLE transacciones ADD CONSTRAINT transacciones_client_id_requests_fkey FOREIGN KEY (client_id) REFERENCES client_requests(client_id) ON DELETE CASCADE;"))
+            conn.commit()
+    except Exception as e:
+        print(f"Advertencia al ajustar constraints de DB: {e}")
+        
     _seed(models)
 
 

@@ -108,6 +108,7 @@ class ClientCreate(BaseModel):
     dpi: str
     placa: str
     tipo_vehiculo_id: Optional[int] = 1  # default Carro
+    numero: Optional[int] = None
 
 
 class ClientCreateDashboard(BaseModel):

@@ -96,6 +96,12 @@ def read_dashboard(request: Request):
     return FileResponse(path)
 
 
+@app.get("/registro")
+def registro_publico():
+    path = os.path.join(os.path.dirname(__file__), "..", "public", "registro.html")
+    return FileResponse(path)
+
+
 @app.get("/logout")
 def logout(request: Request):
     request.session.clear()
@@ -336,16 +342,27 @@ def create_client_request(db: Session = Depends(get_db)):
     """
     Crea una solicitud de cliente.
     No recibe body. Genera seqcode y client_id.
+    Registra la entrada a la tabla entradas_salidas de forma inmediata.
     Devuelve: { seqcode, client_id } o error.
     """
     seqcode = generar_codigo_verificacion()
     client_id = generate_idticket(db)
 
+    # 1. Registrar solicitud de ticket
     req = models.ClientRequest(
         security_code=seqcode,
         client_id=client_id,
     )
     db.add(req)
+    db.flush()
+
+    # 2. Registrar la entrada a la tabla entradas_salidas de forma inmediata
+    entrada = models.EntradaSalida(
+        client_id=client_id,
+        fecha_hora=get_now_gt(),
+        tipo="entrada"
+    )
+    db.add(entrada)
     db.commit()
     db.refresh(req)
 
@@ -381,6 +398,7 @@ def create_client(data: schemas.ClientCreate, db: Session = Depends(get_db)):
         client_id=data.client_id,
         tipo_vehiculo_id=data.tipo_vehiculo_id,
         placa=data.placa,
+        numero=data.numero,
     )
     db.add(db_client)
     db.commit()

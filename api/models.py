@@ -122,7 +122,7 @@ class EntradaSalida(Base):
     __tablename__ = "entradas_salidas"
 
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(String, ForeignKey("clients.client_id"), nullable=False)
+    client_id = Column(String, ForeignKey("client_requests.client_id"), nullable=False)
     fecha_hora = Column(DateTime, nullable=False)
     tipo = Column(String, nullable=False)  # "entrada" | "salida"
 
@@ -137,7 +137,7 @@ class Transaccion(Base):
     __tablename__ = "transacciones"
 
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(String, ForeignKey("clients.client_id"), nullable=False)
+    client_id = Column(String, ForeignKey("client_requests.client_id"), nullable=False)
     monto = Column(Numeric(10, 2), nullable=False)
     tipo_transaccion = Column(String, nullable=False)  # "recarga" | "cobro"
     fecha_hora = Column(DateTime, nullable=False)

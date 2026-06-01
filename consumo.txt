@@ -1,41 +1,93 @@
-# Documentación de Endpoints Autómata
+# GUÍA DE CONSUMO DE ENDPOINTS PARA AUTÓMATAS (MÁQUINAS / KIOSCOS)
 
-Todos estos endpoints están bajo el prefijo `/api/automata/` y están diseñados para ser consumidos por sistemas externos (como máquinas de ticket, escáneres físicos o kioscos de pago).
+Todos los endpoints detallados a continuación están diseñados para la integración con sistemas externos (tales como dispensadores de tickets, barreras de acceso, tótems de pago y lectores de códigos QR).
+
+El prefijo base de la API para todos estos endpoints es:
+`https://<tu-dominio-backend>/api/automata`
 
 ---
 
-## 1. Solicitar Código de Verificación (Paso 1 del Registro)
-Se usa antes de generar un cliente para obtener un código de seguridad y un identificador único de ticket.
+## 1. Generar Ticket y Registrar Entrada
+Este endpoint se invoca al presionar el botón físico en el dispensador de tickets de la barrera de entrada. Genera de forma segura el código de verificación (`seqcode`), crea un identificador único de ticket (`client_id`) y **registra inmediatamente la hora de entrada del vehículo** en la tabla de operaciones del parqueo (`entradas_salidas`).
 
 *   **Método:** `POST`
-*   **URL:** `/api/automata/client-request`
+*   **Ruta:** `/client-request`
 *   **Body:** *(Vacío)*
+*   **Ejemplo de Petición HTTP (cURL):**
+    ```bash
+    curl -X POST https://tu-dominio-backend.com/api/automata/client-request \
+      -H "Content-Type: application/json"
+    ```
+*   **Ejemplo de Petición HTTP (JavaScript Fetch):**
+    ```javascript
+    fetch('https://tu-dominio-backend.com/api/automata/client-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(res => res.json())
+    .then(data => console.log(data));
+    ```
 *   **Respuesta Exitosa (200 OK):**
     ```json
     {
-      "seqcode": "123456",
-      "client_id": "TKT-XYZ123..."
+      "seqcode": "824961",
+      "client_id": "TKT-1717255861"
     }
     ```
 
 ---
 
-## 2. Crear Cliente (Paso 2 del Registro)
-Valida el `seqcode` y `client_id` obtenidos en el paso anterior y registra al cliente con sus datos y tipo de vehículo.
+## 2. Registrar/Activar Datos de Cliente
+Permite al usuario registrar sus datos personales (nombre, placa, número de WhatsApp, DPI y tipo de vehículo) asociándolos al ticket físico que obtuvo al ingresar. Al confirmarse este formulario en la página pública de registro, el ticket se activa completamente para permitir cobros y recargas de saldo.
 
 *   **Método:** `POST`
-*   **URL:** `/api/automata/client`
+*   **Ruta:** `/client`
 *   **Body (JSON):**
     ```json
     {
-      "seqcode": "123456",
-      "client_id": "TKT-XYZ123...",
-      "nombres": "Juan",
-      "apellidos": "Pérez",
-      "dpi": "3000123450101",
-      "placa": "P123ABC",
-      "tipo_vehiculo_id": 4
+      "client_id": "TKT-1717255861",
+      "seqcode": "824961",
+      "nombres": "Arturo",
+      "apellidos": "Castillo",
+      "dpi": "3001204000101",
+      "placa": "P583KKC",
+      "tipo_vehiculo_id": 1,
+      "numero": 50123456
     }
+    ```
+*   **Ejemplo de Petición HTTP (cURL):**
+    ```bash
+    curl -X POST https://tu-dominio-backend.com/api/automata/client \
+      -H "Content-Type: application/json" \
+      -d '{
+        "client_id": "TKT-1717255861",
+        "seqcode": "824961",
+        "nombres": "Arturo",
+        "apellidos": "Castillo",
+        "dpi": "3001204000101",
+        "placa": "P583KKC",
+        "tipo_vehiculo_id": 1,
+        "numero": 50123456
+      }'
+    ```
+*   **Ejemplo de Petición HTTP (JavaScript Fetch):**
+    ```javascript
+    fetch('https://tu-dominio-backend.com/api/automata/client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            client_id: "TKT-1717255861",
+            seqcode: "824961",
+            nombres: "Arturo",
+            apellidos: "Castillo",
+            dpi: "3001204000101",
+            placa: "P583KKC",
+            tipo_vehiculo_id: 1,
+            numero: 50123456
+        })
+    })
+    .then(res => res.json())
+    .then(data => console.log(data));
     ```
 *   **Respuesta Exitosa (200 OK):**
     ```json
@@ -43,79 +95,128 @@ Valida el `seqcode` y `client_id` obtenidos en el paso anterior y registra al cl
       "status": "ok"
     }
     ```
+*   **Respuesta Errónea (400 Bad Request):**
+    *   *Si el ticket no coincide:*
+        ```json
+        { "detail": "seqcode y client_id no coinciden con ninguna solicitud registrada" }
+        ```
+    *   *Si ya existe un cliente con este ticket:*
+        ```json
+        { "detail": "Este client_id ya tiene un cliente registrado" }
+        ```
 
 ---
 
-## 3. Registrar Entrada o Salida
-Registra explícitamente el ingreso o la salida de un vehículo del parqueo. La hora se toma automáticamente del servidor en el momento de la petición.
+## 3. Registrar Entrada o Salida Manual de Barrera
+Permite a una barrera física (con lector QR autónomo) registrar ingresos o salidas subsecuentes enviando el ID del ticket.
+*   **Nota de seguridad**: El endpoint de salida bloquea el paso si el cliente no está previamente registrado en la tabla de datos personales.
 
 *   **Método:** `POST`
-*   **URL:** `/api/automata/entrada-salida/{client_id}`
+*   **Ruta:** `/entrada-salida/{client_id}`
 *   **Body (JSON):**
     ```json
     {
-      "tipo": "entrada"  // o "salida"
+      "tipo": "salida"
     }
+    ```
+*   **Ejemplo de Petición HTTP (cURL):**
+    ```bash
+    curl -X POST https://tu-dominio-backend.com/api/automata/entrada-salida/TKT-1717255861 \
+      -H "Content-Type: application/json" \
+      -d '{
+        "tipo": "salida"
+      }'
     ```
 *   **Respuesta Exitosa (200 OK):**
     ```json
     {
       "status": "ok",
-      "tipo": "entrada"
+      "tipo": "salida"
+    }
+    ```
+*   **Respuesta Errónea (400 Bad Request) - Salida Bloqueada por No Registro:**
+    ```json
+    {
+      "detail": "no registrado TKT-1717255861"
     }
     ```
 
 ---
 
-## 4. Cobro Automático (Todo en uno)
-Calcula automáticamente cuánto tiempo ha pasado desde la última "entrada", busca la tarifa que aplica según el `tipo_vehiculo_id` del cliente, y registra la transacción de tipo `"cobro"` directamente en la base de datos.
+## 4. Cobro Automático (Paso Completo de Transacción)
+Calcula el tiempo de estadía transcurrido desde la última entrada, consulta las tarifas vigentes asociadas al tipo de vehículo del cliente, valida que tenga saldo suficiente y realiza el débito directo (tipo `"cobro"`).
 
 *   **Método:** `POST`
-*   **URL:** `/api/automata/cobrar/{client_id}`
+*   **Ruta:** `/cobrar/{client_id}`
 *   **Body:** *(Vacío)*
+*   **Ejemplo de Petición HTTP (cURL):**
+    ```bash
+    curl -X POST https://tu-dominio-backend.com/api/automata/cobrar/TKT-1717255861 \
+      -H "Content-Type: application/json"
+    ```
 *   **Respuesta Exitosa (200 OK):**
     ```json
     {
       "status": "ok",
-      "client_id": "TKT-XYZ123...",
-      "nombres": "Juan",
-      "monto_cobrado": 25.50
+      "client_id": "TKT-1717255861",
+      "nombres": "Arturo",
+      "monto_cobrado": 15.00,
+      "saldo_restante": 35.00
+    }
+    ```
+*   **Respuesta Errónea (400 Bad Request) - Saldo Insuficiente:**
+    ```json
+    {
+      "detail": "Saldo Insuficiente. Saldo actual: Q5.00, requerido: Q15.00."
     }
     ```
 
 ---
 
-## 5. Calcular Cobro (Solo lectura)
-Si la máquina solo quiere *saber* cuánto va a ser el total antes de procesar un pago externo. No guarda ninguna transacción en la base de datos, solo hace el cálculo.
+## 5. Calcular Cobro Estimado (Solo Lectura)
+Calcula y devuelve el cobro acumulado hasta el momento de forma virtual, sin crear ninguna transacción ni modificar la base de datos financiera. Útil para mostrar un precobro en pantallas informativas de kioscos.
 
 *   **Método:** `GET`
-*   **URL:** `/api/automata/calcular-cobro/{client_id}`
+*   **Ruta:** `/calcular-cobro/{client_id}`
 *   **Body:** *(Vacío)*
+*   **Ejemplo de Petición HTTP (cURL):**
+    ```bash
+    curl -X GET https://tu-dominio-backend.com/api/automata/calcular-cobro/TKT-1717255861
+    ```
 *   **Respuesta Exitosa (200 OK):**
     ```json
     {
       "status": "ok",
-      "client_id": "TKT-XYZ123...",
-      "nombres": "Juan",
-      "ultima_entrada": "2026-06-01T10:00:00",
-      "minutos_totales": 125,
-      "total_cobrar": 25.50
+      "client_id": "TKT-1717255861",
+      "nombres": "Arturo",
+      "ultima_entrada": "2026-06-01T12:00:00",
+      "minutos_totales": 90,
+      "total_cobrar": 15.00
     }
     ```
 
 ---
 
-## 6. Registrar Transacción Manual
-Si necesitas registrar una transacción por un monto específico (ej. una `"recarga"` a una tarjeta del parqueo o un `"cobro"` procesado por otro medio).
+## 6. Registrar Transacción Manual (Recargas / Cobros Especiales)
+Registra directamente una transacción financiera manual en la base de datos para el ticket proveído. Es ideal para estaciones de recarga manuales que deseen inyectar saldo a un ticket o registrar cobros externos.
 
 *   **Método:** `POST`
-*   **URL:** `/api/automata/transaccion/{client_id}`
+*   **Ruta:** `/transaccion/{client_id}`
 *   **Body (JSON):**
     ```json
     {
-      "tipo_transaccion": "recarga",  // o "cobro"
-      "monto": 50.00
+      "tipo_transaccion": "recarga",
+      "monto": 100.00
     }
+    ```
+*   **Ejemplo de Petición HTTP (cURL):**
+    ```bash
+    curl -X POST https://tu-dominio-backend.com/api/automata/transaccion/TKT-1717255861 \
+      -H "Content-Type: application/json" \
+      -d '{
+        "tipo_transaccion": "recarga",
+        "monto": 100.00
+      }'
     ```
 *   **Respuesta Exitosa (200 OK):**
     ```json
