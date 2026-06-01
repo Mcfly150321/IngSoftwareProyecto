@@ -75,6 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
             try { stopScannerExplicitScanner(); } catch(e) {}
             try { stopExitScanner(); } catch(e) {}
             try { stopEntryScanner(); } catch(e) {}
+            try { stopRecargaScanner(); } catch(e) {}
 
             // Title update
             const titles = {
@@ -86,6 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'editartarifas': 'Editar Tarifas',
                 'inscripcion': 'Nuevo Ticket / Registro',
                 'pagos': 'Control de Pagos / Salida',
+                'recarga': 'Recargar Saldo de Ticket',
                 'entrada': 'Entrada al Parqueo',
                 'salida': 'Salida del Parqueo'
             };
@@ -1086,4 +1088,131 @@ async function onScanSuccessEntry(decodedText) {
             }, 2500);
         }
     }, 300);
+}
+
+
+/**
+ * SECCION: RECARGA SALDO (CON LECTOR QR Y BOTONES DE MONTO)
+ */
+let html5QrCode_Recarga = null;
+let isProcessing_Recarga = false;
+let currentRechargeClientId = null;
+
+async function startRecargaScanner() {
+    if (html5QrCode_Recarga) return;
+    html5QrCode_Recarga = new Html5Qrcode("reader-recarga");
+    const config = { fps: 20, qrbox: { width: 250, height: 250 } };
+
+    document.getElementById("btnStartScanner-recarga").style.display = "none";
+    document.getElementById("btnStopScanner-recarga").style.display = "inline-block";
+    document.getElementById("rechargePanel").style.display = "none";
+
+    try {
+        await html5QrCode_Recarga.start(
+            { facingMode: "environment" },
+            config,
+            onScanSuccessRecarga
+        );
+    } catch (err) {
+        html5QrCode_Recarga = null;
+        document.getElementById("btnStartScanner-recarga").style.display = "inline-block";
+        document.getElementById("btnStopScanner-recarga").style.display = "none";
+        const msgEl = document.getElementById("message-recarga");
+        if (msgEl) msgEl.textContent = "❌ No se pudo iniciar la cámara.";
+    }
+}
+
+async function stopRecargaScanner() {
+    if (html5QrCode_Recarga) {
+        try { await html5QrCode_Recarga.stop(); } catch {}
+        html5QrCode_Recarga = null;
+    }
+    document.getElementById("btnStartScanner-recarga").style.display = "inline-block";
+    document.getElementById("btnStopScanner-recarga").style.display = "none";
+}
+
+function resetRecargaScanner() {
+    const overlay = document.getElementById("resultOverlay-recarga");
+    if (overlay) overlay.classList.remove("active");
+    const nameEl = document.getElementById("scanResultName-recarga");
+    if (nameEl) nameEl.textContent = "";
+    const successCircle = document.getElementById("successCircle-recarga");
+    const errorCircle = document.getElementById("errorCircle-recarga");
+    if (successCircle) successCircle.style.display = "flex";
+    if (errorCircle) errorCircle.style.display = "none";
+    
+    document.getElementById("rechargePanel").style.display = "none";
+    currentRechargeClientId = null;
+    isProcessing_Recarga = false;
+    stopRecargaScanner();
+}
+
+async function onScanSuccessRecarga(decodedText) {
+    if (isProcessing_Recarga) return;
+    isProcessing_Recarga = true;
+
+    if (audioCtx_Scanner.state === 'suspended') audioCtx_Scanner.resume();
+    await stopRecargaScanner();
+
+    setTimeout(async () => {
+        try {
+            // 1. Obtener balance del cliente
+            const res = await fetch(`${API_URL}/balance/${decodedText}`);
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.detail || "Ticket o cliente no encontrado en la base de datos");
+
+            playBeepScanner();
+            
+            // 2. Cargar panel de recarga
+            currentRechargeClientId = decodedText;
+            document.getElementById("rechargeClientName").textContent = data.nombres;
+            document.getElementById("rechargeClientId").textContent = decodedText;
+            document.getElementById("rechargeCurrentBalance").textContent = `Q${data.saldo.toFixed(2)}`;
+            
+            document.getElementById("rechargePanel").style.display = "block";
+            isProcessing_Recarga = false;
+
+        } catch (err) {
+            playErrorBeepScanner();
+            const overlay = document.getElementById("resultOverlay-recarga");
+            const successCircle = document.getElementById("successCircle-recarga");
+            const errorCircle = document.getElementById("errorCircle-recarga");
+            const nameEl = document.getElementById("scanResultName-recarga");
+
+            nameEl.textContent = err.message;
+            successCircle.style.display = "none";
+            errorCircle.style.display = "flex";
+            overlay.classList.add("active");
+            isProcessing_Recarga = false;
+
+            // Auto-reiniciar cámara al error para el siguiente scan
+            setTimeout(() => {
+                overlay.classList.remove("active");
+                isProcessing_Recarga = false;
+                startRecargaScanner();
+            }, 2500);
+        }
+    }, 300);
+}
+
+async function executeRecharge(monto) {
+    if (!currentRechargeClientId) return;
+
+    try {
+        const res = await fetch(`${API_URL}/recargar/${currentRechargeClientId}?monto=${monto}`, {
+            method: 'POST'
+        });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.detail || "Error al procesar recarga");
+
+        alert(`¡Recarga de Q${monto.toFixed(2)} procesada con éxito!\nNuevo saldo: Q${data.nuevo_saldo.toFixed(2)}`);
+        
+        // Actualizar el saldo mostrado en pantalla
+        document.getElementById("rechargeCurrentBalance").textContent = `Q${data.nuevo_saldo.toFixed(2)}`;
+
+    } catch (err) {
+        alert(`Error al recargar: ${err.message}`);
+    }
 }
