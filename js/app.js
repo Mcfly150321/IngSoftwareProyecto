@@ -611,7 +611,10 @@ function initRegistrationForm() {
                 }
 
                 // 3. Mostrar ticket y abrir WhatsApp si aplica
-                alert(`¡Vehículo ingresado y ticket generado exitosamente!\nTicket ID: ${client_id}`);
+                const msgEl = document.getElementById("message-registration");
+                if (msgEl) {
+                    msgEl.innerHTML = `<div style="background-color: #d1fae5; color: #065f46; padding: 12px; border-radius: 8px; font-weight: 600; border: 1px solid #10b981; margin-top: 10px;">✅ ¡Vehículo ingresado y ticket generado exitosamente!<br><b>Ticket ID:</b> ${client_id}</div>`;
+                }
                 
                 if (ticket_url) {
                     window.open(ticket_url, '_blank');
@@ -626,7 +629,10 @@ function initRegistrationForm() {
                 updateDashboardStats();
 
             } catch (err) {
-                alert(`Error: ${err.message}`);
+                const msgEl = document.getElementById("message-registration");
+                if (msgEl) {
+                    msgEl.innerHTML = `<div style="background-color: #fee2e2; color: #991b1b; padding: 12px; border-radius: 8px; font-weight: 600; border: 1px solid #ef4444; margin-top: 10px;">❌ Error: ${err.message}</div>`;
+                }
             }
         });
     });
@@ -827,6 +833,8 @@ function resetForNextScanner() {
 async function confirmCurrentPayment() {
     if (!currentScanId) return;
     const btn = document.getElementById("btnConfirmPay-scanner");
+    const msgEl = document.getElementById("message-scanner");
+    if (msgEl) msgEl.innerHTML = "";
     
     await withLoading(btn, async () => {
         try {
@@ -842,6 +850,10 @@ async function confirmCurrentPayment() {
             document.getElementById("inv-total").style.color = "#10b981";
             document.getElementById("inv-total").textContent = `Q${data.monto_cobrado.toFixed(2)} [PAGADO]`;
             
+            if (msgEl) {
+                msgEl.innerHTML = `<div style="background-color: #d1fae5; color: #065f46; padding: 12px; border-radius: 8px; font-weight: 600; border: 1px solid #10b981; margin-top: 10px;">✅ Pago procesado exitosamente por Q${data.monto_cobrado.toFixed(2)}. Saldo restante: Q${data.saldo_restante.toFixed(2)}</div>`;
+            }
+
             updateDashboardStats();
 
             // Auto-reset after 1.5 seconds
@@ -851,7 +863,9 @@ async function confirmCurrentPayment() {
                 }
             }, 1500);
         } catch (err) {
-            alert(err.message);
+            if (msgEl) {
+                msgEl.innerHTML = `<div style="background-color: #fee2e2; color: #991b1b; padding: 12px; border-radius: 8px; font-weight: 600; border: 1px solid #ef4444; margin-top: 10px;">❌ Error: ${err.message}</div>`;
+            }
         }
     });
 }
@@ -1196,23 +1210,31 @@ async function onScanSuccessRecarga(decodedText) {
     }, 300);
 }
 
-async function executeRecharge(monto) {
+async function executeRecharge(btn, monto) {
     if (!currentRechargeClientId) return;
+    const msgEl = document.getElementById("message-recarga");
+    if (msgEl) msgEl.innerHTML = "";
 
-    try {
-        const res = await fetch(`${API_URL}/recargar/${currentRechargeClientId}?monto=${monto}`, {
-            method: 'POST'
-        });
-        const data = await res.json();
+    await withLoading(btn, async () => {
+        try {
+            const res = await fetch(`${API_URL}/recargar/${currentRechargeClientId}?monto=${monto}`, {
+                method: 'POST'
+            });
+            const data = await res.json();
 
-        if (!res.ok) throw new Error(data.detail || "Error al procesar recarga");
+            if (!res.ok) throw new Error(data.detail || "Error al procesar recarga");
 
-        alert(`¡Recarga de Q${monto.toFixed(2)} procesada con éxito!\nNuevo saldo: Q${data.nuevo_saldo.toFixed(2)}`);
-        
-        // Actualizar el saldo mostrado en pantalla
-        document.getElementById("rechargeCurrentBalance").textContent = `Q${data.nuevo_saldo.toFixed(2)}`;
+            if (msgEl) {
+                msgEl.innerHTML = `<div style="background-color: #d1fae5; color: #065f46; padding: 12px; border-radius: 8px; font-weight: 600; border: 1px solid #10b981; margin-top: 10px;">✅ ¡Recarga de Q${monto.toFixed(2)} procesada con éxito! Nuevo saldo: Q${data.nuevo_saldo.toFixed(2)}</div>`;
+            }
+            
+            // Actualizar el saldo mostrado en pantalla
+            document.getElementById("rechargeCurrentBalance").textContent = `Q${data.nuevo_saldo.toFixed(2)}`;
 
-    } catch (err) {
-        alert(`Error al recargar: ${err.message}`);
-    }
+        } catch (err) {
+            if (msgEl) {
+                msgEl.innerHTML = `<div style="background-color: #fee2e2; color: #991b1b; padding: 12px; border-radius: 8px; font-weight: 600; border: 1px solid #ef4444; margin-top: 10px;">❌ Error al recargar: ${err.message}</div>`;
+            }
+        }
+    });
 }

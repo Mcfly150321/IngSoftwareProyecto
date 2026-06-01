@@ -252,6 +252,7 @@
                             <button type="button" class="btn-secondary" id="cancel-edit-btn" style="display: none;">Cancelar</button>
                         </div>
                     </form>
+                    <div id="message-registration" style="margin-top: 1rem;"></div>
                 </div>
             </section>
 
@@ -377,10 +378,10 @@
 
                         <h4 style="margin-bottom: 10px; color: #334155; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Seleccione el Monto a Recargar</h4>
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px;">
-                            <button class="btn-primary" style="background-color: #10b981; border: none; font-size: 16px; font-weight: 700; padding: 12px;" onclick="executeRecharge(5)">💰 Q5.00</button>
-                            <button class="btn-primary" style="background-color: #10b981; border: none; font-size: 16px; font-weight: 700; padding: 12px;" onclick="executeRecharge(10)">💰 Q10.00</button>
-                            <button class="btn-primary" style="background-color: #10b981; border: none; font-size: 16px; font-weight: 700; padding: 12px;" onclick="executeRecharge(15)">💰 Q15.00</button>
-                            <button class="btn-primary" style="background-color: #10b981; border: none; font-size: 16px; font-weight: 700; padding: 12px;" onclick="executeRecharge(20)">💰 Q20.00</button>
+                            <button class="btn-primary" style="background-color: #10b981; border: none; font-size: 16px; font-weight: 700; padding: 12px;" onclick="executeRecharge(this, 5)">💰 Q5.00</button>
+                            <button class="btn-primary" style="background-color: #10b981; border: none; font-size: 16px; font-weight: 700; padding: 12px;" onclick="executeRecharge(this, 10)">💰 Q10.00</button>
+                            <button class="btn-primary" style="background-color: #10b981; border: none; font-size: 16px; font-weight: 700; padding: 12px;" onclick="executeRecharge(this, 15)">💰 Q15.00</button>
+                            <button class="btn-primary" style="background-color: #10b981; border: none; font-size: 16px; font-weight: 700; padding: 12px;" onclick="executeRecharge(this, 20)">💰 Q20.00</button>
                         </div>
                         
                         <button class="btn-primary" style="background-color: #ef4444; border: none; width: 100%; padding: 10px;" onclick="resetRecargaScanner()">❌ Cancelar / Cerrar</button>

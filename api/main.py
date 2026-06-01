@@ -425,11 +425,22 @@ def create_entrada_salida(client_id: str, data: schemas.EntradaSalidaCreate, db:
     client = db.query(models.Client).filter(
         models.Client.client_id == client_id
     ).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
     if data.tipo == "salida":
+        if not client:
+            raise HTTPException(
+                status_code=400,
+                detail=f"no registrado {client_id}"
+            )
         _verificar_pago_salida(client_id, db)
+    else:
+        # Para entrada, permitimos si existe al menos la solicitud de ticket (ClientRequest)
+        req_exists = db.query(models.ClientRequest).filter(models.ClientRequest.client_id == client_id).first()
+        if not req_exists:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Ticket {client_id} no válido"
+            )
 
     registro = models.EntradaSalida(
         client_id=client_id,
@@ -521,6 +532,16 @@ def cobrar_automatico(client_id: str, db: Session = Depends(get_db)):
     """
     client, ultima_entrada, minutos_totales, total_cobro = _calcular_monto(client_id, db)
 
+    # 1. Obtener saldo actual
+    saldo = _calcular_saldo(client.client_id, db)
+
+    # 2. Verificar si el saldo es suficiente
+    if saldo < float(total_cobro):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Saldo Insuficiente. Saldo actual: Q{saldo:.2f}, requerido: Q{total_cobro:.2f}."
+        )
+
     tx = models.Transaccion(
         client_id=client.client_id,
         monto=total_cobro,
@@ -534,7 +555,8 @@ def cobrar_automatico(client_id: str, db: Session = Depends(get_db)):
         "status": "ok",
         "client_id": client.client_id,
         "nombres": client.nombres,
-        "monto_cobrado": round(total_cobro, 2)
+        "monto_cobrado": round(total_cobro, 2),
+        "saldo_restante": round(saldo - float(total_cobro), 2)
     }
 
 
@@ -555,6 +577,15 @@ def create_transaccion(client_id: str, data: schemas.TransaccionCreate, db: Sess
     ).first()
     if not client:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    # Si es un cobro, verificar saldo
+    if data.tipo_transaccion == "cobro":
+        saldo = _calcular_saldo(client_id, db)
+        if saldo < float(data.monto):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Saldo Insuficiente. Saldo actual: Q{saldo:.2f}, requerido: Q{data.monto:.2f}."
+            )
 
     tx = models.Transaccion(
         client_id=client_id,
