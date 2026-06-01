@@ -71,6 +71,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const targetSection = document.getElementById(target);
             if (targetSection) targetSection.classList.add('active');
             
+            // Detener cámaras al cambiar de sección
+            try { stopScannerExplicitScanner(); } catch(e) {}
+            try { stopExitScanner(); } catch(e) {}
+            try { stopEntryScanner(); } catch(e) {}
+
             // Title update
             const titles = {
                 'dashboard': 'Dashboard Parqueo',
@@ -81,6 +86,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'editartarifas': 'Editar Tarifas',
                 'inscripcion': 'Nuevo Ticket / Registro',
                 'pagos': 'Control de Pagos / Salida',
+                'entrada': 'Entrada al Parqueo',
                 'salida': 'Salida del Parqueo'
             };
             pageTitle.textContent = titles[target] || 'Sistema Parqueo';
@@ -964,6 +970,118 @@ async function onScanSuccessExit(decodedText) {
                 overlay.classList.remove("active");
                 isProcessing_Exit = false;
                 startExitScanner();
+            }, 2500);
+        }
+    }, 300);
+}
+
+
+/**
+ * SECCION: ENTRADA (SCANNER DE ENTRADA - ROL SEGURIDAD)
+ */
+let html5QrCode_Entry = null;
+let isProcessing_Entry = false;
+
+async function startEntryScanner() {
+    if (html5QrCode_Entry) return;
+    html5QrCode_Entry = new Html5Qrcode("reader-entry");
+    const config = { fps: 20, qrbox: { width: 250, height: 250 } };
+
+    document.getElementById("btnStartScanner-entry").style.display = "none";
+    document.getElementById("btnStopScanner-entry").style.display = "inline-block";
+
+    try {
+        await html5QrCode_Entry.start(
+            { facingMode: "environment" },
+            config,
+            onScanSuccessEntry
+        );
+    } catch (err) {
+        html5QrCode_Entry = null;
+        document.getElementById("btnStartScanner-entry").style.display = "inline-block";
+        document.getElementById("btnStopScanner-entry").style.display = "none";
+        const msgEl = document.getElementById("message-entry");
+        if (msgEl) msgEl.textContent = "❌ No se pudo iniciar la cámara.";
+    }
+}
+
+async function stopEntryScanner() {
+    if (html5QrCode_Entry) {
+        try { await html5QrCode_Entry.stop(); } catch {}
+        html5QrCode_Entry = null;
+    }
+    document.getElementById("btnStartScanner-entry").style.display = "inline-block";
+    document.getElementById("btnStopScanner-entry").style.display = "none";
+}
+
+function resetEntryScanner() {
+    const overlay = document.getElementById("resultOverlay-entry");
+    if (overlay) overlay.classList.remove("active");
+    const nameEl = document.getElementById("scanResultName-entry");
+    if (nameEl) nameEl.textContent = "";
+    const successCircle = document.getElementById("successCircle-entry");
+    const errorCircle = document.getElementById("errorCircle-entry");
+    if (successCircle) successCircle.style.display = "flex";
+    if (errorCircle) errorCircle.style.display = "none";
+    isProcessing_Entry = false;
+    stopEntryScanner();
+}
+
+async function onScanSuccessEntry(decodedText) {
+    if (isProcessing_Entry) return;
+    isProcessing_Entry = true;
+
+    if (audioCtx_Scanner.state === 'suspended') audioCtx_Scanner.resume();
+    await stopEntryScanner();
+
+    setTimeout(async () => {
+        try {
+            const res = await fetch(`${API_URL}/entradas-salidas/`, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    client_id: decodedText,
+                    tipo: "entrada"
+                })
+            });
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.detail || "Error al procesar entrada");
+
+            playBeepScanner();
+            // Mostrar éxito
+            const overlay = document.getElementById("resultOverlay-entry");
+            const successCircle = document.getElementById("successCircle-entry");
+            const errorCircle = document.getElementById("errorCircle-entry");
+            const nameEl = document.getElementById("scanResultName-entry");
+
+            nameEl.textContent = `Entrada registrada exitosamente (Ticket: ${data.client_id})`;
+            successCircle.style.display = "flex";
+            errorCircle.style.display = "none";
+            overlay.classList.add("active");
+            updateDashboardStats();
+
+            // Auto-reset 2 segundos
+            setTimeout(() => resetEntryScanner(), 2000);
+
+        } catch (err) {
+            playErrorBeepScanner();
+            const overlay = document.getElementById("resultOverlay-entry");
+            const successCircle = document.getElementById("successCircle-entry");
+            const errorCircle = document.getElementById("errorCircle-entry");
+            const nameEl = document.getElementById("scanResultName-entry");
+
+            nameEl.textContent = err.message;
+            successCircle.style.display = "none";
+            errorCircle.style.display = "flex";
+            overlay.classList.add("active");
+            isProcessing_Entry = false;
+
+            // Auto-reiniciar cámara al error para el siguiente scan
+            setTimeout(() => {
+                overlay.classList.remove("active");
+                isProcessing_Entry = false;
+                startEntryScanner();
             }, 2500);
         }
     }, 300);
