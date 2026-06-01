@@ -181,8 +181,7 @@ async function loadParqueosOptions() {
             const opt = document.createElement('option');
             opt.value = p.id;
             
-            // p.ocupacion viene del endpoint modificado
-            const cap = p.capacidad_maxima;
+            const cap = p.capacidad;
             const oc = p.ocupacion || 0;
             const full = oc >= cap;
             
@@ -219,7 +218,7 @@ async function loadParqueosEdit() {
                     </div>
                     <div class="form-group">
                         <label>Capacidad Máxima</label>
-                        <input type="number" id="p-cap-${p.id}" value="${p.capacidad_maxima}">
+                        <input type="number" id="p-cap-${p.id}" value="${p.capacidad}">
                     </div>
                     <div style="display:flex; align-items:flex-end;">
                         <button class="btn-primary" onclick="saveParqueo(${p.id})">💾 Guardar</button>
@@ -253,52 +252,11 @@ async function saveParqueo(id) {
 async function loadTarifasEdit() {
     const container = document.getElementById('tarifas-edit-list');
     if (!container) return;
-    container.innerHTML = '<p>Cargando...</p>';
-    try {
-        const res = await fetch(`${API_URL}/tarifas/`);
-        const tarifas = await res.json();
-        container.innerHTML = tarifas.map(t => `
-            <div class="card" style="padding:1rem; border:1px solid var(--border);">
-                <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr auto;">
-                    <div class="form-group">
-                        <label>Nombre</label>
-                        <input type="text" id="t-nombre-${t.id}" value="${t.nombre}">
-                    </div>
-                    <div class="form-group">
-                        <label>Costo (Q)</label>
-                        <input type="number" step="0.01" id="t-costo-${t.id}" value="${t.costo}">
-                    </div>
-                    <div class="form-group">
-                        <label>Duración (min)</label>
-                        <input type="number" id="t-tiempo-${t.id}" value="${t.tiempo}">
-                    </div>
-                    <div style="display:flex; align-items:flex-end;">
-                        <button class="btn-primary" onclick="saveTarifa(${t.id})">💾 Guardar</button>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-    } catch (err) {
-        container.innerHTML = `<p style="color:red;">❌ ${err.message}</p>`;
-    }
+    container.innerHTML = '<p>Edición de tarifas (Requiere actualización al nuevo esquema de DB con dropdowns de Vehículos y Unidades)</p>';
 }
 
 async function saveTarifa(id) {
-    const nombre = document.getElementById(`t-nombre-${id}`).value;
-    const costo = parseFloat(document.getElementById(`t-costo-${id}`).value);
-    const tiempo = parseInt(document.getElementById(`t-tiempo-${id}`).value);
-    try {
-        const res = await fetch(`${API_URL}/tarifas/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, costo, tiempo })
-        });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.detail);
-        alert(`✅ Tarifa "${result.nombre}" actualizada (${result.tiempo} min = Q${result.costo}).`);
-    } catch (err) {
-        alert(`❌ ${err.message}`);
-    }
+    // Disabled until UI is updated for new schema
 }
 
 async function checkConnectionStatus() {
