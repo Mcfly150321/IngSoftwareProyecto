@@ -540,60 +540,56 @@ function initRegistrationForm() {
             const formData = new FormData(regForm);
             const data = Object.fromEntries(formData.entries());
 
-            if (checkboxCF.checked) {
-                data.names = "C/F";
-                data.lastnames = "C/F";
-                data.nit = "0";
-            }
-
             const clientData = {
-                names: data.names,
-                lastnames: data.lastnames,
-                nit: data.nit,
-                phone: data.phone,
-                parqueo_id: parseInt(data.parqueo_id)
+                nombres: data.nombres || data.names || "",
+                apellidos: data.apellidos || data.lastnames || "",
+                dpi: data.dpi || data.nit || "",
+                placa: data.placa || data.phone || "", // Fallback si el HTML no se ha actualizado
+                tipo_vehiculo_id: parseInt(data.tipo_vehiculo_id || 1)
             };
 
-            const url = `${API_URL}/clients/`;
+            try {
+                // 1. Obtener seqcode y client_id
+                const reqRes = await fetch(`${API_URL}/automata/client-request`, { method: 'POST' });
+                if (!reqRes.ok) throw new Error("Error generating client request");
+                const { seqcode, client_id } = await reqRes.json();
+                
+                // 2. Registrar cliente
+                clientData.seqcode = seqcode;
+                clientData.client_id = client_id;
+                
+                const clientRes = await fetch(`${API_URL}/automata/client`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(clientData)
+                });
+                
+                if (!clientRes.ok) {
+                    const errorData = await clientRes.json();
+                    throw new Error(errorData.detail || "Error al guardar registro del cliente");
+                }
 
-try {
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(clientData)
-    });
-    
-    if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || "Error al guardar registro");
-    }
-    
-    const result = await res.json();
+                // 3. Registrar entrada
+                const entRes = await fetch(`${API_URL}/automata/entrada-salida/${client_id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tipo: "entrada" })
+                });
 
-    // 1. Mostramos el mensaje. El navegador se detiene aquí hasta que den "Aceptar".
-    alert(`Ticket generado: ${result.idclient}`);
-    
-    // 2. Al dar clic en "OK", ejecutamos las aperturas de URL:
-    
-    // Abrir WhatsApp (Prioridad)
-    if (result.url) {
-        window.open(result.url, '_blank');
-    }
+                if (!entRes.ok) {
+                    throw new Error("Error al registrar entrada en parqueo");
+                }
 
-    // Abrir el PDF (Opcional, ya que el link va en el WhatsApp)
-    if (result.carnet_pdf_url) {
-        // Nota: Algunos navegadores podrían bloquear esta segunda ventana emergente
-        window.open(result.carnet_pdf_url, '_blank');
-    }
+                alert(`Ticket generado exitosamente: ${client_id}`);
+                
+                // Limpiar formulario y actualizar vista
+                regForm.reset();
+                if (typeof updateFormVisibility === 'function') updateFormVisibility();
+                updateDashboardStats();
 
-    // 3. Limpiar formulario y actualizar vista
-    regForm.reset();
-    updateFormVisibility();
-    updateDashboardStats();
-
-} catch (err) {
-    alert(`Error: ${err.message}`);
-}
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            }
         });
     });
 
@@ -680,7 +676,7 @@ async function onScanSuccessPagos(decodedText) {
     setTimeout(async () => {
         try {
             const dateStr = new Date().toISOString().split('T')[0];
-            const res = await fetch(`${API_URL}/assistance/${encodeURIComponent(decodedText)}?date=${dateStr}&action=take`, { method: "POST" });
+            const res = await fetch(`${API_URL}/automata/calcular-cobro/${encodeURIComponent(decodedText)}`, { method: "GET" });
             const data = await res.json();
             
             if (!res.ok) throw new Error(data.detail || "ID no válido o vehículo ya pagado");
@@ -708,7 +704,7 @@ function showResultUI_Pagos(data) {
     const btnNext = document.getElementById("btnNext-scanner");
     const btnConfirm = document.getElementById("btnConfirmPay-scanner");
 
-    currentScanId = data.Client_id;
+    currentScanId = data.client_id;
     resultName.textContent = data.client_name;
     
     // Fill Invoice Details
@@ -796,7 +792,14 @@ async function confirmCurrentPayment() {
     
     await withLoading(btn, async () => {
         try {
-            const res = await fetch(`${API_URL}/payments/close/${currentScanId}`, { method: 'POST' });
+            const res = await fetch(`${API_URL}/automata/transaccion/${currentScanId}`, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tipo_transaccion: "cobro",
+                    monto: parseFloat(document.getElementById("inv-total").textContent.replace("Q",""))
+                })
+            });
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || "Error al procesar pago");
             
@@ -891,7 +894,13 @@ async function onScanSuccessExit(decodedText) {
 
     setTimeout(async () => {
         try {
-            const res = await fetch(`${API_URL}/out/${encodeURIComponent(decodedText)}`, { method: "POST" });
+            const res = await fetch(`${API_URL}/automata/entrada-salida/${encodeURIComponent(decodedText)}`, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tipo: "salida"
+                })
+            });
             const data = await res.json();
 
             if (!res.ok) throw new Error(data.detail || "Error al procesar salida");

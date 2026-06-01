@@ -1,0 +1,50 @@
+1. Esquema de Base de Datos Integrado
+dejamos de ofrecer consumidor final C/f en front y en backend tambien quitamos lo relacionado
+A. Módulo de Parqueos y Recursos
+
+    parqueos: id, nombre (varchar), capacidad (int).
+
+    tipos_vehiculo: id, nombre (Carro, Moto, Pesado). se agregan por defecto
+
+    unidades_tiempo: id, nombre (Hora, Día, etc.). Se agregan por defecto Fraccion (lo que seamenor a una hroa), Hora, Dia, mes
+
+    tarifas: id, tipo_vehiculo_id (FK), unidad_tiempo_id (FK), costo (decimal)
+
+B. Módulo de Personal y Seguridad (Roles y Credenciales)
+
+    roles: id, rol (Gerente, Maquina, Seguridad).
+
+    empleados: id, nombres, apellidos, cui, edad, rol_id (FK).
+
+    credentials: id, empleado_id (FK), user (unique), passwd (hash).
+
+    quiero que inyectemos directo un registro de Arturo Maldonado, Gerente, 274599, 21, Mcfly, hash $argon2id$v=19$m=65536,t=3,p=4$Gct4tOkBsWW7njs56WDrBg$mMLZZxe04g8OeBSxLldb4ZtSgjtMNZuAw26ZZWzAtlA
+
+C. Módulo de Operaciones (Clientes y Eventos)
+
+    client_requests: id, security code (lo vamos a generar con el modulo seqcode.py), client_id
+    
+    clients: id, nombres, apellidos, dpi, client_id (obntenido de client_requests), tipo_vehiculo_id (FK), placa.
+
+    entradas_salidas: id, client_id (FK), fecha_hora, tipo (entrada/salida).
+
+D. Módulo Financiero (Ledger)
+
+    transacciones: id, client_id (FK), monto (decimal), tipo_transaccion (recarga, cobro), fecha_hora
+
+
+hay que darle una revisada a cada endpoint y actualizarlo en base a esto
+de la misma forma actualizar front y requests desde ahi para tener fit con la reactorizacion de db
+
+
+
+2. creacion de nuvos endopoints que tengan el identiicador de endpoint Automatas (porque son endpoints que se van a consumir desde otro lado)
+
+
+post:
+-endpoint para crear request de Cliente, para la tabla client requests, este endpoint no debe llevar info, porque solo es solicitud de creacion, pero devuelve seqcode y client_id deuvelveo ok o error
+-endpoint para crear cliente en db (por deecto tipo carro), este debe llevar seq code y client_id, ademas de los datos que se cebem llenar en clientes (post), se valida en client_requests la existencia de los datos seqcode y client_id y que hagan mach en un registro, devuelve solo ok o error
+-endpoint para crear entrada o salida, lo que debe llevar como atributo  es clientid, la hroa la saca el sistema
+-endpoint para crear transaccion, debe llevar tipo recarga o cobro y tambien client_id
+
+estos endpoint automata solo devuelven ok o error

@@ -1,42 +1,42 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, APIRouter, Request
-import json
+import os
+import datetime
+import urllib.parse
+
+from fastapi import FastAPI, Depends, HTTPException, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, and_, desc
-from typing import List, Optional
-from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from pydantic import BaseModel
+from typing import List
+
 from . import database, schemas, models
 from .database import SessionLocal, init_db
-import datetime
-from datetime import date
-import random
-import os
-import urllib.parse
-from .qr import generar_qr
+from .seqcode import generar_codigo_verificacion
 from .idticket import generate_idticket
+from .qr import generar_qr
 from .imagenticket import generar_imgticket
 from .cloudinarylogic import subir_imagen
 
-def get_now_gt():
-    """Retorna la hora actual en UTC-6 (Guatemala) como datetime ingenua."""
-    return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-6))).replace(tzinfo=None)
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def get_now_gt() -> datetime.datetime:
+    """Hora actual en UTC-6 (Guatemala) sin tzinfo."""
+    return datetime.datetime.now(
+        datetime.timezone(datetime.timedelta(hours=-6))
+    ).replace(tzinfo=None)
 
 
-import webbrowser
+ph = PasswordHasher()
 
 
-from fastapi.staticfiles import StaticFiles
+# ── App & Middleware ──────────────────────────────────────────────────────────
 
 app = FastAPI()
-
-app.mount("/assets", StaticFiles(directory="assets"), name="assets")
-
-router = APIRouter(prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,10 +46,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Database
+secret_key = os.getenv("SECRET_KEY", "fallback-dev-secret")
+app.add_middleware(SessionMiddleware, secret_key=secret_key)
+
+# Archivos estáticos
+static_dirs = {
+    "/css":    os.path.join(os.path.dirname(__file__), "..", "css"),
+    "/js":     os.path.join(os.path.dirname(__file__), "..", "js"),
+    "/assets": os.path.join(os.path.dirname(__file__), "..", "assets"),
+    "/img":    os.path.join(os.path.dirname(__file__), "..", "assets"),
+}
+for mount_path, directory in static_dirs.items():
+    if os.path.exists(directory):
+        app.mount(mount_path, StaticFiles(directory=directory), name=mount_path[1:])
+    else:
+        print(f"WARNING: Carpeta {directory} no encontrada. Saltando montaje.")
+
+# Inicializar DB y seed
 init_db()
 
-# Dependency to get the database session
+router = APIRouter(prefix="/api")
+
+
+# ── DB Dependency ─────────────────────────────────────────────────────────────
+
 def get_db():
     db = SessionLocal()
     try:
@@ -57,487 +77,512 @@ def get_db():
     finally:
         db.close()
 
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PÁGINAS
+# ═════════════════════════════════════════════════════════════════════════════
+
+@app.get("/")
+def read_index():
+    path = os.path.join(os.path.dirname(__file__), "..", "index.html")
+    return FileResponse(path)
+
+
+@app.get("/dashboard")
+def read_dashboard(request: Request):
+    if not request.session.get("session_user"):
+        return RedirectResponse(url="/", status_code=303)
+    path = os.path.join(os.path.dirname(__file__), "..", "dashboard.html")
+    return FileResponse(path)
+
+
+@app.get("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/", status_code=303)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# HEALTH
+# ═════════════════════════════════════════════════════════════════════════════
+
 @router.get("/ping")
 def ping():
     return {"status": "ok"}
 
-@router.post("/newparqueo")
-async def create_parqueo(
-    parqueo: schemas.ParqueoCreate, # Asegúrate que schemas esté importado correctamente
-    db: Session = Depends(get_db)
-):
-    # CORRECCIÓN: Usar capacidad_maxima que es como viene del frontend/esquema
-    db_parqueo = models.Parqueo(
-        nombre=parqueo.nombre,
-        capacidad_maxima=parqueo.capacidad_maxima
+
+# ═════════════════════════════════════════════════════════════════════════════
+# AUTH
+# ═════════════════════════════════════════════════════════════════════════════
+
+class LoginData(BaseModel):
+    username: str
+    password: str
+
+
+@router.post("/login")
+def login(datos: LoginData, request: Request, db: Session = Depends(get_db)):
+    # Buscar credencial por username
+    cred = db.query(models.Credential).filter(
+        models.Credential.user == datos.username
+    ).first()
+
+    if not cred:
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+
+    try:
+        ph.verify(cred.passwd, datos.password)
+    except VerifyMismatchError:
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Error al verificar credenciales: {e}")
+
+    empleado = cred.empleado
+    rol_nombre = empleado.rol_rel.rol if empleado.rol_rel else ""
+
+    request.session["session_user"] = cred.user
+    return {
+        "success": True,
+        "mensaje": "Login exitoso",
+        "username": cred.user,
+        "first_name": empleado.nombres.strip().split()[0],
+        "rol": rol_nombre,
+    }
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# DASHBOARD STATS
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/stats")
+def get_stats(db: Session = Depends(get_db)):
+    # Vehículos activos = tienen entrada pero no salida (última entrada sin salida posterior)
+    # Simplificado: contamos clients que tienen al menos una entrada y ninguna salida posterior
+    from sqlalchemy import func
+
+    # Subquery: clients con al menos una entrada
+    entradas = (
+        db.query(models.EntradaSalida.client_id)
+        .filter(models.EntradaSalida.tipo == "entrada")
+        .subquery()
     )
-    db.add(db_parqueo)
-    db.commit()
-    db.refresh(db_parqueo)
-    return db_parqueo
+    salidas = (
+        db.query(models.EntradaSalida.client_id)
+        .filter(models.EntradaSalida.tipo == "salida")
+        .subquery()
+    )
+    # Activos = tienen entrada pero no están en salidas
+    active_ids = (
+        db.query(models.Client.client_id)
+        .filter(models.Client.client_id.in_(
+            db.query(entradas.c.client_id)
+        ))
+        .filter(models.Client.client_id.notin_(
+            db.query(salidas.c.client_id)
+        ))
+        .all()
+    )
+    active_count = len(active_ids)
 
-@router.get("/parqueos/")
-def list_parqueos(db: Session = Depends(get_db)):
+    # Parqueos para gráficos (usamos capacidad vs activos por parqueo — no hay FK de parqueo en client ahora)
     parqueos = db.query(models.Parqueo).all()
-    resultado = []
-    for p in parqueos:
-        # Contar vehículos activos en este parqueo
-        ocupados = db.query(models.Client).filter(
-            models.Client.parqueo_id == p.id,
-            models.Client.is_active == True
-        ).count()
-        resultado.append({
-            "id": p.id,
-            "nombre": p.nombre,
-            "capacidad_maxima": p.capacidad_maxima,
-            "ocupacion": ocupados
-        })
-    return resultado
+    charts_data = {
+        "labels": [p.nombre for p in parqueos],
+        "values": [0] * len(parqueos),  # sin FK a parqueo en client, se deja para futura expansión
+    }
 
-@router.put("/parqueos/{parqueo_id}", response_model=schemas.ParqueoSchema)
-def update_parqueo(parqueo_id: int, parqueo: schemas.ParqueoBase, db: Session = Depends(get_db)):
-    db_p = db.query(models.Parqueo).filter(models.Parqueo.id == parqueo_id).first()
-    if not db_p:
-        raise HTTPException(status_code=404, detail="Parqueo no encontrado")
-    db_p.nombre = parqueo.nombre
-    db_p.capacidad_maxima = parqueo.capacidad_maxima
+    now_gt = get_now_gt()
+    return {
+        "clients": active_count,
+        "charts_data": charts_data,
+        "server_datetime": now_gt.strftime("%d/%m/%Y %I:%M:%S %p"),
+    }
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PARQUEOS
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/parqueos/", response_model=List[schemas.ParqueoSchema])
+def list_parqueos(db: Session = Depends(get_db)):
+    return db.query(models.Parqueo).all()
+
+
+@router.post("/parqueos/", response_model=schemas.ParqueoSchema)
+def create_parqueo(parqueo: schemas.ParqueoCreate, db: Session = Depends(get_db)):
+    db_p = models.Parqueo(nombre=parqueo.nombre, capacidad=parqueo.capacidad)
+    db.add(db_p)
     db.commit()
     db.refresh(db_p)
     return db_p
 
-@router.get("/tarifas/")
-def list_tarifas(db: Session = Depends(get_db)):
-    return db.query(models.Tarifa).order_by(models.Tarifa.tiempo.desc()).all()
 
-@router.put("/tarifas/{tarifa_id}", response_model=schemas.TarifaSchema)
-def update_tarifa(tarifa_id: int, tarifa: schemas.TarifaBase, db: Session = Depends(get_db)):
-    db_t = db.query(models.Tarifa).filter(models.Tarifa.id == tarifa_id).first()
-    if not db_t:
-        raise HTTPException(status_code=404, detail="Tarifa no encontrada")
-    db_t.nombre = tarifa.nombre
-    db_t.costo = tarifa.costo
-    db_t.tiempo = tarifa.tiempo
+@router.put("/parqueos/{parqueo_id}", response_model=schemas.ParqueoSchema)
+def update_parqueo(parqueo_id: int, parqueo: schemas.ParqueoCreate, db: Session = Depends(get_db)):
+    db_p = db.query(models.Parqueo).filter(models.Parqueo.id == parqueo_id).first()
+    if not db_p:
+        raise HTTPException(status_code=404, detail="Parqueo no encontrado")
+    db_p.nombre = parqueo.nombre
+    db_p.capacidad = parqueo.capacidad
+    db.commit()
+    db.refresh(db_p)
+    return db_p
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TIPOS DE VEHÍCULO
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/tipos-vehiculo/", response_model=List[schemas.TipoVehiculoSchema])
+def list_tipos_vehiculo(db: Session = Depends(get_db)):
+    return db.query(models.TipoVehiculo).all()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# UNIDADES DE TIEMPO
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/unidades-tiempo/", response_model=List[schemas.UnidadTiempoSchema])
+def list_unidades_tiempo(db: Session = Depends(get_db)):
+    return db.query(models.UnidadTiempo).all()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TARIFAS
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/tarifas/", response_model=List[schemas.TarifaSchema])
+def list_tarifas(db: Session = Depends(get_db)):
+    return db.query(models.Tarifa).all()
+
+
+@router.post("/tarifas/", response_model=schemas.TarifaSchema)
+def create_tarifa(tarifa: schemas.TarifaCreate, db: Session = Depends(get_db)):
+    db_t = models.Tarifa(
+        tipo_vehiculo_id=tarifa.tipo_vehiculo_id,
+        unidad_tiempo_id=tarifa.unidad_tiempo_id,
+        costo=tarifa.costo,
+    )
+    db.add(db_t)
     db.commit()
     db.refresh(db_t)
     return db_t
 
-@router.post("/newtarifa")
-async def create_tarifa(
-    tarifa: schemas.TarifaCreate, # Asegúrate que schemas esté importado correctamente
-    db: Session = Depends(get_db)
-):
-    # CORRECCIÓN: Usar costo que es como viene del frontend/esquema
-    db_tarifa = models.Tarifa(
-        nombre=tarifa.nombre,
-        costo=tarifa.costo,
-        tiempo=tarifa.tiempo
-    )
-    db.add(db_tarifa)
+
+@router.put("/tarifas/{tarifa_id}", response_model=schemas.TarifaSchema)
+def update_tarifa(tarifa_id: int, tarifa: schemas.TarifaCreate, db: Session = Depends(get_db)):
+    db_t = db.query(models.Tarifa).filter(models.Tarifa.id == tarifa_id).first()
+    if not db_t:
+        raise HTTPException(status_code=404, detail="Tarifa no encontrada")
+    db_t.tipo_vehiculo_id = tarifa.tipo_vehiculo_id
+    db_t.unidad_tiempo_id = tarifa.unidad_tiempo_id
+    db_t.costo = tarifa.costo
     db.commit()
-    db.refresh(db_tarifa)
-    return db_tarifa
+    db.refresh(db_t)
+    return db_t
 
-@router.post("/newemploy", response_model=schemas.EmpleadoSchema)
-async def create_empleado(
-    empleado: schemas.EmpleadoCreate,
-    db: Session = Depends(get_db)
-):
-    # Verificar que el usuario o CUI no existan ya
-    existing = db.query(models.Empleado).filter(
-        (models.Empleado.user == empleado.user) | (models.Empleado.cui == empleado.cui)
-    ).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="El usuario o CUI ya existe en el sistema")
 
-    hashed_pwd = ph.hash(empleado.password)
+# ═════════════════════════════════════════════════════════════════════════════
+# EMPLEADOS
+# ═════════════════════════════════════════════════════════════════════════════
 
-    db_empleado = models.Empleado(
+@router.get("/roles/", response_model=List[schemas.RolSchema])
+def list_roles(db: Session = Depends(get_db)):
+    return db.query(models.Rol).all()
+
+
+@router.get("/empleados/", response_model=List[schemas.EmpleadoSchema])
+def list_empleados(db: Session = Depends(get_db)):
+    return db.query(models.Empleado).all()
+
+
+@router.post("/empleados/", response_model=schemas.EmpleadoSchema)
+def create_empleado(empleado: schemas.EmpleadoCreate, db: Session = Depends(get_db)):
+    # Verificar unicidad de CUI y user
+    if db.query(models.Empleado).filter(models.Empleado.cui == empleado.cui).first():
+        raise HTTPException(status_code=400, detail="El CUI ya existe en el sistema")
+    if db.query(models.Credential).filter(models.Credential.user == empleado.user).first():
+        raise HTTPException(status_code=400, detail="El usuario ya existe en el sistema")
+
+    db_emp = models.Empleado(
         nombres=empleado.nombres,
         apellidos=empleado.apellidos,
         cui=empleado.cui,
-        numero=empleado.numero,
         edad=empleado.edad,
-        rol=empleado.rol,
+        rol_id=empleado.rol_id,
+    )
+    db.add(db_emp)
+    db.flush()
+
+    cred = models.Credential(
+        empleado_id=db_emp.id,
         user=empleado.user,
-        password_hash=hashed_pwd
+        passwd=ph.hash(empleado.password),
     )
-    db.add(db_empleado)
+    db.add(cred)
     db.commit()
-    db.refresh(db_empleado)
-    return db_empleado
+    db.refresh(db_emp)
+    return db_emp
 
-@router.post("/clients/")
-async def create_Client(
-    client: schemas.ClientCreate,
-    db: Session = Depends(get_db)
-):
-    # 1. Inicializamos las variables para evitar UnboundLocalError
-    pdf_cloudinary_url = None
-    url = ""
 
-    db_Client = models.Client(
-        names=client.names,
-        lastnames=client.lastnames,
-        nit=client.nit,
-        phone=client.phone,
-        parqueo_id=client.parqueo_id,
-        is_created=get_now_gt()
+# ═════════════════════════════════════════════════════════════════════════════
+# ENDPOINTS AUTÓMATA
+# Prefijo: /api/automata/
+# Consumidos desde sistemas externos (máquinas, kioscos, etc.)
+# Solo devuelven ok o error, excepto el primero que también devuelve seqcode/client_id
+# ═════════════════════════════════════════════════════════════════════════════
+
+automata = APIRouter(prefix="/api/automata")
+
+
+@automata.post("/client-request", response_model=schemas.ClientRequestResponse)
+def create_client_request(db: Session = Depends(get_db)):
+    """
+    Crea una solicitud de cliente.
+    No recibe body. Genera seqcode y client_id.
+    Devuelve: { seqcode, client_id } o error.
+    """
+    seqcode = generar_codigo_verificacion()
+    client_id = generate_idticket(db)
+
+    req = models.ClientRequest(
+        security_code=seqcode,
+        client_id=client_id,
     )
-    db_Client.idclient = generate_idticket(db)
-    db_Client.registration_date = get_now_gt().strftime("%Y-%m")
-    db_Client.is_created = get_now_gt()
-    
-    db.add(db_Client)
+    db.add(req)
     db.commit()
-    db.refresh(db_Client)
+    db.refresh(req)
 
-    # --- LÓGICA DE PROCESAMIENTO ---
-    tmp_images_dir = "/tmp/images"
-    os.makedirs(tmp_images_dir, exist_ok=True)
-
-    try:
-        qr_path = generar_qr(db_Client.idclient)
-        img_path = generar_imgticket(db_Client.idclient, qr_path)
-        img_cloudinary_url = subir_imagen(img_path)
-        db_Client.carnet_img_url = img_cloudinary_url
-
-        # MENSAJE DE WHATSAPP (Aquí ya no fallará porque importamos urllib)
-        nombremensaje = client.names.strip().split()[0]
-        waMessage = f"Hola, {nombremensaje} \n Aca tienes tu Ticket de Parqueo:\n{img_cloudinary_url}"
-        mensaje_limpio = urllib.parse.quote(waMessage)
-        url = f"https://wa.me/502{client.phone}?text={mensaje_limpio}"
-        
-        db.commit()
-
-        # ... (Tu lógica de módulos se mantiene igual) ...
-        for module_name in MODULES_LIST:
-            # ... tu código de módulos ...
-            pass
-
-        # Limpieza de archivos
-        for p in [qr_path, img_path]:
-            try:
-                if os.path.exists(p): os.remove(p)
-            except: pass
-
-    except Exception as e:
-        print(f"ERROR en procesamiento post-registro: {str(e)}")
-    
-    # El return ahora siempre encontrará las variables, aunque estén vacías si falló el try
-    return {
-        "idclient": db_Client.idclient,
-        "names": db_Client.names,
-        "lastnames": db_Client.lastnames,
-        "carnet_pdf_url": pdf_cloudinary_url,
-        "url": url 
-    }
+    return schemas.ClientRequestResponse(seqcode=seqcode, client_id=client_id)
 
 
+@automata.post("/client")
+def create_client(data: schemas.ClientCreate, db: Session = Depends(get_db)):
+    """
+    Registra un cliente.
+    Valida que seqcode + client_id existan y hagan match en client_requests.
+    Devuelve: ok o error.
+    """
+    req = db.query(models.ClientRequest).filter(
+        models.ClientRequest.client_id == data.client_id,
+        models.ClientRequest.security_code == data.seqcode,
+    ).first()
 
-@router.get("/clients/{idclient}/idclient-url")
-def get_carnet_url(idclient: str, db: Session = Depends(get_db)):
-    Client = db.query(models.Client.carnet_pdf_url).filter(models.Client.idclient == idclient).first()
-    if not Client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    return {"carnet_pdf_url": Client[0]}
+    if not req:
+        raise HTTPException(
+            status_code=400,
+            detail="seqcode y client_id no coinciden con ninguna solicitud registrada"
+        )
+
+    # Verificar que no exista ya un cliente con este client_id
+    if db.query(models.Client).filter(models.Client.client_id == data.client_id).first():
+        raise HTTPException(status_code=400, detail="Este client_id ya tiene un cliente registrado")
+
+    db_client = models.Client(
+        nombres=data.nombres,
+        apellidos=data.apellidos,
+        dpi=data.dpi,
+        client_id=data.client_id,
+        tipo_vehiculo_id=data.tipo_vehiculo_id,
+        placa=data.placa,
+    )
+    db.add(db_client)
+    db.commit()
+
+    return {"status": "ok"}
 
 
+@automata.post("/entrada-salida/{client_id}")
+def create_entrada_salida(client_id: str, data: schemas.EntradaSalidaCreate, db: Session = Depends(get_db)):
+    """
+    Registra una entrada o salida.
+    El tipo lo envía el sistema ("entrada" o "salida").
+    La hora la pone el sistema.
+    Devuelve: ok o error.
+    """
+    if data.tipo not in ("entrada", "salida"):
+        raise HTTPException(status_code=400, detail="tipo debe ser 'entrada' o 'salida'")
 
-# Payments
-    # Refrescamos para asegurar que devolvemos el estado real de la DB
-    return {"status": status, "is_paid": is_paid}
-
-@router.post("/payments/close/{Client_id}")
-def close_payment(Client_id: str, db: Session = Depends(get_db)):
-    client = db.query(models.Client).filter(models.Client.idclient == Client_id).first()
+    client = db.query(models.Client).filter(
+        models.Client.client_id == client_id
+    ).first()
     if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    payment = db.query(models.Payment).filter(
-        models.Payment.Client_id == Client_id,
-        models.Payment.is_paid == False
-    ).first()
-
-    if not payment:
-        raise HTTPException(status_code=404, detail="No pending payment found for this client")
-
-    if not client.is_created or not payment.lastscanhour:
-        raise HTTPException(status_code=400, detail="Missing entry or exit time for calculation")
-
-    # Calcular costo según dos tarifas:
-    # Por cada 5 minutos cobramos tarifa2
-    # Fraccion superior a 2 min paga tarifa 1 adicional
-    duration = payment.lastscanhour - client.is_created
-    seconds = int(duration.total_seconds())
-    
-    # Ciclo de 5 minutos (300 segundos)
-    ciclos_5min = seconds // 300
-    minutos_restantes = (seconds % 300) / 60
-    
-    # Buscar tarifas en DB
-    t1 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa1").first()
-    t2 = db.query(models.Tarifa).filter(models.Tarifa.nombre == "Tarifa2").first()
-    
-    cost1 = t1.costo if t1 else 5.0  # Fallback
-    cost2 = t2.costo if t2 else 10.0 # Fallback
-    
-    total_calc = ciclos_5min * cost2
-    if minutos_restantes > 2:
-        total_calc += cost1
-        
-    payment.total = total_calc
-    payment.is_paid = True
-    client.is_paid = True
-    
+    registro = models.EntradaSalida(
+        client_id=client_id,
+        fecha_hora=get_now_gt(),
+        tipo=data.tipo,
+    )
+    db.add(registro)
     db.commit()
+
+    return {"status": "ok", "tipo": data.tipo}
+
+
+def _calcular_monto(client_id: str, db: Session):
+    client = db.query(models.Client).filter(models.Client.client_id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    ultima_entrada = (
+        db.query(models.EntradaSalida)
+        .filter(models.EntradaSalida.client_id == client_id, models.EntradaSalida.tipo == "entrada")
+        .order_by(models.EntradaSalida.fecha_hora.desc())
+        .first()
+    )
+
+    if not ultima_entrada:
+        raise HTTPException(status_code=400, detail="El cliente no tiene ninguna entrada registrada")
     
-    return {
-        "status": "ok",
-        "duration_minutes": round(seconds / 60, 2),
-        "total": payment.total,
-        "is_paid": True
-    }
-
-@router.get("/stats")
-async def get_stats(db: Session = Depends(get_db)):
-    # Contar clientes activos
-    active_count = db.query(models.Client).filter(models.Client.is_active == True).count()
+    ahora = get_now_gt()
+    diferencia = ahora - ultima_entrada.fecha_hora
+    minutos_totales = int(diferencia.total_seconds() / 60)
     
-    # Obtener todos los parqueos para los gráficos
-    parqueos = db.query(models.Parqueo).all()
+    mapa_tiempos = {"Fraccion": 15, "Hora": 60, "Dia": 1440, "Mes": 43200}
+    tarifas = db.query(models.Tarifa).filter(models.Tarifa.tipo_vehiculo_id == client.tipo_vehiculo_id).all()
     
-    charts_data = {
-        "labels": [p.nombre for p in parqueos],
-        "values": []
-    }
-    
-    for p in parqueos:
-        count = db.query(models.Client).filter(
-            models.Client.parqueo_id == p.id,
-            models.Client.is_active == True
-        ).count()
-        # Porcentaje de ocupación
-        percent = (count / p.capacidad_maxima * 100) if p.capacidad_maxima > 0 else 0
-        charts_data["values"].append(round(percent, 1))
-
-    # Format datetime (Guatemala)
-    now_gt = get_now_gt()
-    server_datetime = now_gt.strftime("%d/%m/%Y %I:%M:%S %p")
-
-    return {
-        "clients": active_count,
-        "charts_data": charts_data,
-        "server_datetime": server_datetime
-    }
-
-@router.get("/parqueos/", response_model=List[schemas.ParqueoSchema])
-async def list_parqueos(db: Session = Depends(get_db)):
-    return db.query(models.Parqueo).all()
-
-@router.get("/tarifas/", response_model=List[schemas.TarifaSchema])
-async def list_tarifas(db: Session = Depends(get_db)):
-    return db.query(models.Tarifa).all()
-
-
-
-# Servir archivos estáticos (con validación para evitar crash en Vercel)
-# Crucial: Apuntamos tanto /img como /assets a la carpeta física 'assets'
-static_dirs = {
-    "/css": os.path.join(os.path.dirname(__file__), "..", "css"),
-    "/js": os.path.join(os.path.dirname(__file__), "..", "js"),
-    "/assets": os.path.join(os.path.dirname(__file__), "..", "assets"),
-    "/img": os.path.join(os.path.dirname(__file__), "..", "assets")
-}
-
-for mount_path, directory in static_dirs.items():
-    if os.path.exists(directory):
-        app.mount(mount_path, StaticFiles(directory=directory), name=mount_path[1:])
-    else:
-        print(f"WARNING: Carpeta {directory} no encontrada. Saltando montaje.")
-
-# Configuración de Sesiones con Cookies Firmadas
-secret_key = os.getenv("SECRET_KEY")
-app.add_middleware(SessionMiddleware, secret_key=secret_key)
-
-@app.get("/")
-def read_index():
-    # Usamos .. para salir de la carpeta /api y buscar en la raíz
-    path = os.path.join(os.path.dirname(__file__), '..', 'index.html')
-    return FileResponse(path)
-
-@app.get("/dashboard")
-def read_dashboard(request: Request):
-    # Verificamos la sesión firmada
-    if not request.session.get("session_user"):
-        return RedirectResponse(url="/", status_code=303)
-    
-    # Servir el dashboard desde la raíz
-    path = os.path.join(os.path.dirname(__file__), '..', 'dashboard.html')
-    return FileResponse(path)
-
-@app.get("/logout")
-def logout(request: Request):
-    # Limpiamos la sesión firmada
-    request.session.clear()
-    return RedirectResponse(url="/", status_code=303)
-
-ph = PasswordHasher()
-
-class LoginData(BaseModel): 
-    username: str
-    password: str
-
-@router.post("/login")
-def login(datos: LoginData, request: Request, db: Session = Depends(get_db)):
-    # 1. Buscar empleado por username en la DB
-    empleado = db.query(models.Empleado).filter(
-        models.Empleado.user == datos.username
-    ).first()
-
-    if not empleado:
-        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
-
-    # 2. Verificar contraseña con argon2
-    try:
-        ph.verify(empleado.password_hash, datos.password)
-    except VerifyMismatchError:
-        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Error al verificar credenciales: {str(e)}")
-
-    # 3. Login exitoso
-    request.session["session_user"] = empleado.user
-    return {
-        "success": True,
-        "mensaje": "Login exitoso",
-        "username": empleado.user,
-        "first_name": empleado.nombres.strip().split()[0],
-        "rol": empleado.rol
-    }
-
-@router.post("/assistance/{identifier}")
-def update_attendance(
-    identifier: str,
-    date: date,
-    action: str = Query("take", enum=["take", "delete"]),
-    db: Session = Depends(get_db)
-):
-    # Buscar al cliente por su idclient directamente
-    Client = db.query(models.Client).filter(
-        models.Client.idclient == identifier
-    ).first()
-
-    if not Client:
-        raise HTTPException(
-            status_code=404, 
-            detail="Identificador no reconocido o vehiculo no encontrado"
-        )
-
-    if Client.is_paid:
-        raise HTTPException(
-            status_code=400,
-            detail="Este vehículo ya realizó su pago. Use la estación de Salida para procesar la salida."
-        )
-
-    # En lugar de Assistance, usamos la lógica de Payment para "Salida" (Checkout)
-    # Buscamos un registro de pago pendiente para este cliente
-    record = db.query(models.Payment).filter(
-        models.Payment.Client_id == Client.idclient,
-        models.Payment.is_paid == False
-    ).first()
-
-    if not record:
-        # Si no existe, lo creamos (esto registra la "hora de salida" actual)
-        record = models.Payment(
-            Client_id=Client.idclient,
-            lastscanhour=get_now_gt(),
-            is_paid=False
-        )
-        db.add(record)
-    else:
-        # Si ya existía, actualizamos la hora de salida (último scan)
-        record.lastscanhour = get_now_gt()
+    total_cobro = 0.0
+    if tarifas:
+        tarifas_min = []
+        for t in tarifas:
+            mins = mapa_tiempos.get(t.unidad_tiempo.nombre, 60)
+            tarifas_min.append((mins, t.costo))
         
-    # Calcular costo dinámicamente usando las tarifas registradas en DB
-    # Ordenadas de mayor a menor tiempo (greedy: ciclos grandes primero)
-    total_calc = 0.0
-    if Client.is_created and record.lastscanhour:
-        duration = record.lastscanhour - Client.is_created
-        total_seconds = int(duration.total_seconds())
-        minutos_totales = total_seconds // 60  # Solo minutos completos
-
-        # Cargar tarifas ordenadas de mayor a menor tiempo
-        tarifas = db.query(models.Tarifa).order_by(models.Tarifa.tiempo.desc()).all()
-
+        tarifas_min.sort(key=lambda x: x[0], reverse=True)
+        
         minutos_restantes = minutos_totales
-        for tarifa in tarifas:
-            if tarifa.tiempo and tarifa.tiempo > 0:
-                ciclos = minutos_restantes // tarifa.tiempo
-                total_calc += ciclos * tarifa.costo
-                minutos_restantes = minutos_restantes % tarifa.tiempo
+        for mins, costo in tarifas_min:
+            if mins > 0:
+                ciclos = minutos_restantes // mins
+                total_cobro += ciclos * float(costo)
+                minutos_restantes = minutos_restantes % mins
+                
+        if minutos_restantes > 0 and tarifas_min:
+            tarifa_min = min(tarifas_min, key=lambda x: x[0])
+            total_cobro += float(tarifa_min[1])
 
-        # Minutos sueltos que no completaron ningún ciclo: cobrar la tarifa más pequeña
-        if minutos_restantes > 0 and tarifas:
-            tarifa_min = min(tarifas, key=lambda t: t.tiempo)
-            total_calc += tarifa_min.costo
+    return client, ultima_entrada, minutos_totales, total_cobro
 
-        record.total = total_calc
-    else:
-        total_calc = 0.0
+@automata.get("/calcular-cobro/{client_id}")
+def calcular_cobro(client_id: str, db: Session = Depends(get_db)):
+    """
+    Calcula el cobro buscando la última 'entrada' y generando un (ahora - tiempo_ultima_entrada).
+    Calcula en base a las tarifas registradas para el tipo_vehiculo del cliente.
+    """
+    client, ultima_entrada, minutos_totales, total_cobro = _calcular_monto(client_id, db)
 
-    db.commit()
-    
     return {
         "status": "ok",
-        "Client_id": Client.idclient,
-        "client_name": Client.names if Client.names else "Consumidor Final",
-        "client_nit": Client.nit if Client.nit else "C/F",
-        "lastscanhour": record.lastscanhour.isoformat(),
-        "entry_time": Client.is_created.isoformat() if Client.is_created else None,
-        "duration_minutes": total_calc, 
-        "total": total_calc
+        "client_id": client.client_id,
+        "nombres": client.nombres,
+        "ultima_entrada": ultima_entrada.fecha_hora,
+        "minutos_totales": minutos_totales,
+        "total_cobrar": round(total_cobro, 2)
+    }
+
+@automata.post("/cobrar/{client_id}")
+def cobrar_automatico(client_id: str, db: Session = Depends(get_db)):
+    """
+    Calcula el cobro automáticamente y registra la transacción (tipo 'cobro') en un solo paso.
+    """
+    client, ultima_entrada, minutos_totales, total_cobro = _calcular_monto(client_id, db)
+
+    tx = models.Transaccion(
+        client_id=client.client_id,
+        monto=total_cobro,
+        tipo_transaccion="cobro",
+        fecha_hora=get_now_gt(),
+    )
+    db.add(tx)
+    db.commit()
+
+    return {
+        "status": "ok",
+        "client_id": client.client_id,
+        "nombres": client.nombres,
+        "monto_cobrado": round(total_cobro, 2)
     }
 
 
-
-@router.post("/out/{identifier}")
-def process_exit(
-    identifier: str,
-    db: Session = Depends(get_db)
-):
-    """Endpoint exclusivo de la estación de Salida (Seguridad).
-    Solo permite salir si el vehículo ya pagó en la caja."""
-    Client = db.query(models.Client).filter(
-        models.Client.idclient == identifier
-    ).first()
-
-    if not Client:
-        raise HTTPException(
-            status_code=404,
-            detail="Vehículo no encontrado. Verifique el QR."
-        )
-
-    if not Client.is_active:
+@automata.post("/transaccion/{client_id}")
+def create_transaccion(client_id: str, data: schemas.TransaccionCreate, db: Session = Depends(get_db)):
+    """
+    Registra una transacción (recarga o cobro).
+    Devuelve: ok o error.
+    """
+    if data.tipo_transaccion not in ("recarga", "cobro"):
         raise HTTPException(
             status_code=400,
-            detail="Este vehículo ya ha salido del parqueo."
+            detail="tipo_transaccion debe ser 'recarga' o 'cobro'"
         )
 
-    if not Client.is_paid:
-        raise HTTPException(
-            status_code=402,
-            detail="Vehículo sin pago. Debe pasar por caja primero."
-        )
+    client = db.query(models.Client).filter(
+        models.Client.client_id == client_id
+    ).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    # Todo OK: marcar salida
-    Client.is_active = False
+    tx = models.Transaccion(
+        client_id=client_id,
+        monto=data.monto,
+        tipo_transaccion=data.tipo_transaccion,
+        fecha_hora=get_now_gt(),
+    )
+    db.add(tx)
     db.commit()
-    return {
-        "status": "exited",
-        "Client_id": Client.idclient,
-        "client_name": Client.names if Client.names else "Consumidor Final",
-        "message": "✅ Salida procesada. ¡Buen viaje!"
-    }
 
+    return {"status": "ok"}
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CLIENTES (consultas desde el dashboard)
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/clients/", response_model=List[schemas.ClientSchema])
+def list_clients(db: Session = Depends(get_db)):
+    return db.query(models.Client).all()
+
+
+@router.get("/clients/{client_id}", response_model=schemas.ClientSchema)
+def get_client(client_id: str, db: Session = Depends(get_db)):
+    client = db.query(models.Client).filter(models.Client.client_id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    return client
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ENTRADAS / SALIDAS (consultas desde el dashboard)
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/entradas-salidas/", response_model=List[schemas.EntradaSalidaSchema])
+def list_entradas_salidas(db: Session = Depends(get_db)):
+    return (
+        db.query(models.EntradaSalida)
+        .order_by(models.EntradaSalida.fecha_hora.desc())
+        .limit(200)
+        .all()
+    )
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TRANSACCIONES (consultas desde el dashboard)
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/transacciones/", response_model=List[schemas.TransaccionSchema])
+def list_transacciones(db: Session = Depends(get_db)):
+    return (
+        db.query(models.Transaccion)
+        .order_by(models.Transaccion.fecha_hora.desc())
+        .limit(200)
+        .all()
+    )
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Registrar routers
+# ═════════════════════════════════════════════════════════════════════════════
 
 app.include_router(router)
+app.include_router(automata)

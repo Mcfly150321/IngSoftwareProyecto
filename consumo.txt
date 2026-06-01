@@ -1,0 +1,125 @@
+# Documentación de Endpoints Autómata
+
+Todos estos endpoints están bajo el prefijo `/api/automata/` y están diseñados para ser consumidos por sistemas externos (como máquinas de ticket, escáneres físicos o kioscos de pago).
+
+---
+
+## 1. Solicitar Código de Verificación (Paso 1 del Registro)
+Se usa antes de generar un cliente para obtener un código de seguridad y un identificador único de ticket.
+
+*   **Método:** `POST`
+*   **URL:** `/api/automata/client-request`
+*   **Body:** *(Vacío)*
+*   **Respuesta Exitosa (200 OK):**
+    ```json
+    {
+      "seqcode": "123456",
+      "client_id": "TKT-XYZ123..."
+    }
+    ```
+
+---
+
+## 2. Crear Cliente (Paso 2 del Registro)
+Valida el `seqcode` y `client_id` obtenidos en el paso anterior y registra al cliente con sus datos y tipo de vehículo.
+
+*   **Método:** `POST`
+*   **URL:** `/api/automata/client`
+*   **Body (JSON):**
+    ```json
+    {
+      "seqcode": "123456",
+      "client_id": "TKT-XYZ123...",
+      "nombres": "Juan",
+      "apellidos": "Pérez",
+      "dpi": "3000123450101",
+      "placa": "P123ABC",
+      "tipo_vehiculo_id": 1
+    }
+    ```
+*   **Respuesta Exitosa (200 OK):**
+    ```json
+    {
+      "status": "ok"
+    }
+    ```
+
+---
+
+## 3. Registrar Entrada o Salida
+Registra explícitamente el ingreso o la salida de un vehículo del parqueo. La hora se toma automáticamente del servidor en el momento de la petición.
+
+*   **Método:** `POST`
+*   **URL:** `/api/automata/entrada-salida/{client_id}`
+*   **Body (JSON):**
+    ```json
+    {
+      "tipo": "entrada"  // o "salida"
+    }
+    ```
+*   **Respuesta Exitosa (200 OK):**
+    ```json
+    {
+      "status": "ok",
+      "tipo": "entrada"
+    }
+    ```
+
+---
+
+## 4. Cobro Automático (Todo en uno)
+Calcula automáticamente cuánto tiempo ha pasado desde la última "entrada", busca la tarifa que aplica según el `tipo_vehiculo_id` del cliente, y registra la transacción de tipo `"cobro"` directamente en la base de datos.
+
+*   **Método:** `POST`
+*   **URL:** `/api/automata/cobrar/{client_id}`
+*   **Body:** *(Vacío)*
+*   **Respuesta Exitosa (200 OK):**
+    ```json
+    {
+      "status": "ok",
+      "client_id": "TKT-XYZ123...",
+      "nombres": "Juan",
+      "monto_cobrado": 25.50
+    }
+    ```
+
+---
+
+## 5. Calcular Cobro (Solo lectura)
+Si la máquina solo quiere *saber* cuánto va a ser el total antes de procesar un pago externo. No guarda ninguna transacción en la base de datos, solo hace el cálculo.
+
+*   **Método:** `GET`
+*   **URL:** `/api/automata/calcular-cobro/{client_id}`
+*   **Body:** *(Vacío)*
+*   **Respuesta Exitosa (200 OK):**
+    ```json
+    {
+      "status": "ok",
+      "client_id": "TKT-XYZ123...",
+      "nombres": "Juan",
+      "ultima_entrada": "2026-06-01T10:00:00",
+      "minutos_totales": 125,
+      "total_cobrar": 25.50
+    }
+    ```
+
+---
+
+## 6. Registrar Transacción Manual
+Si necesitas registrar una transacción por un monto específico (ej. una `"recarga"` a una tarjeta del parqueo o un `"cobro"` procesado por otro medio).
+
+*   **Método:** `POST`
+*   **URL:** `/api/automata/transaccion/{client_id}`
+*   **Body (JSON):**
+    ```json
+    {
+      "tipo_transaccion": "recarga",  // o "cobro"
+      "monto": 50.00
+    }
+    ```
+*   **Respuesta Exitosa (200 OK):**
+    ```json
+    {
+      "status": "ok"
+    }
+    ```
