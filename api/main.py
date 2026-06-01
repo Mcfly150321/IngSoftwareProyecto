@@ -156,35 +156,31 @@ def login(datos: LoginData, request: Request, db: Session = Depends(get_db)):
 
 @router.get("/stats")
 def get_stats(db: Session = Depends(get_db)):
-    # Vehículos activos = tienen entrada pero no salida (última entrada sin salida posterior)
-    # Simplificado: contamos clients que tienen al menos una entrada y ninguna salida posterior
+    # Vehículos activos = su ÚLTIMO registro de EntradaSalida es de tipo "entrada"
+    # No requiere que el cliente esté registrado en la tabla Client (cubre tickets pre-impresos)
     from sqlalchemy import func
-
-    # Subquery: clients con al menos una entrada
-    entradas = (
-        db.query(models.EntradaSalida.client_id)
-        .filter(models.EntradaSalida.tipo == "entrada")
+    
+    # Subconsulta: encontrar el id del último registro de EntradaSalida para cada client_id
+    subq = (
+        db.query(
+            models.EntradaSalida.client_id,
+            func.max(models.EntradaSalida.id).label("max_id")
+        )
+        .group_by(models.EntradaSalida.client_id)
         .subquery()
     )
-    salidas = (
-        db.query(models.EntradaSalida.client_id)
-        .filter(models.EntradaSalida.tipo == "salida")
-        .subquery()
-    )
-    # Activos = tienen entrada pero no están en salidas
+    
+    # Obtener los client_id cuyo último estado es "entrada"
     active_ids = (
-        db.query(models.Client.client_id)
-        .filter(models.Client.client_id.in_(
-            db.query(entradas.c.client_id)
-        ))
-        .filter(models.Client.client_id.notin_(
-            db.query(salidas.c.client_id)
-        ))
+        db.query(models.EntradaSalida.client_id)
+        .join(subq, models.EntradaSalida.id == subq.c.max_id)
+        .filter(models.EntradaSalida.tipo == "entrada")
         .all()
     )
+    
     active_count = len(active_ids)
 
-    # Parqueos para gráficos (usamos capacidad vs activos por parqueo — no hay FK de parqueo en client ahora)
+    # Parqueos para gráficos (usamos capacidad vs activos por parqueo)
     parqueos = db.query(models.Parqueo).all()
     charts_data = {
         "labels": [p.nombre for p in parqueos],
