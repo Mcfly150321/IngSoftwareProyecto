@@ -834,7 +834,7 @@ input:checked + .slider:before {
 
 
 /* Scanner Layout */
-#scannerWrapper-scanner, #scannerWrapper-exit, #scannerWrapper-entry {
+#scannerWrapper-scanner, #scannerWrapper-exit, #scannerWrapper-entry, #scannerWrapper-recarga {
     position: relative;
     width: 100%;
     max-width: 420px;
@@ -847,25 +847,25 @@ input:checked + .slider:before {
     box-shadow: 0 12px 30px rgba(26, 115, 232, 0.15);
 }
 
-#reader-scanner, #reader-exit, #reader-entry {
+#reader-scanner, #reader-exit, #reader-entry, #reader-recarga {
     width: 100%;
     height: 100%;
 }
 
 /* Customizing the inner scanning frame (Viewfinder) */
-#reader-scanner__qr_code_scanner_guide, #reader-exit__qr_code_scanner_guide, #reader-entry__qr_code_scanner_guide {
+#reader-scanner__qr_code_scanner_guide, #reader-exit__qr_code_scanner_guide, #reader-entry__qr_code_scanner_guide, #reader-recarga__qr_code_scanner_guide {
     border: 5px solid #1a73e8 !important;
     border-radius: 40px !important;
     box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.4);
     transition: all 0.3s ease;
 }
 
-#reader-scanner__qr_scan_region > div, #reader-exit__qr_scan_region > div, #reader-entry__qr_scan_region > div {
+#reader-scanner__qr_scan_region > div, #reader-exit__qr_scan_region > div, #reader-entry__qr_scan_region > div, #reader-recarga__qr_scan_region > div {
     border: none !important;
 }
 
 /* Result Overlay (Success/Error) */
-#resultOverlay-scanner, #resultOverlay-exit, #resultOverlay-entry {
+#resultOverlay-scanner, #resultOverlay-exit, #resultOverlay-entry, #resultOverlay-recarga {
     position: absolute;
     top: 0;
     left: 0;
@@ -880,7 +880,7 @@ input:checked + .slider:before {
     backdrop-filter: blur(10px);
 }
 
-#resultOverlay-scanner.active, #resultOverlay-exit.active, #resultOverlay-entry.active {
+#resultOverlay-scanner.active, #resultOverlay-exit.active, #resultOverlay-entry.active, #resultOverlay-recarga.active {
     display: flex;
 }
 
@@ -1149,7 +1149,7 @@ input:checked + .slider:before {
         border-radius: 12px;
     }
 
-    #scannerWrapper-scanner, #scannerWrapper-exit, #scannerWrapper-entry {
+    #scannerWrapper-scanner, #scannerWrapper-exit, #scannerWrapper-entry, #scannerWrapper-recarga {
         border-radius: 20px;
         border-width: 3px;
         overflow: hidden; /* Asegurar que nada salga de los bordes redondeados */
@@ -1157,12 +1157,12 @@ input:checked + .slider:before {
         max-width: 100%;
     }
 
-    #reader-scanner, #reader-exit, #reader-entry {
+    #reader-scanner, #reader-exit, #reader-entry, #reader-recarga {
         width: 100% !important;
         max-width: 100% !important;
     }
 
-    #reader-scanner video, #reader-exit video, #reader-entry video {
+    #reader-scanner video, #reader-exit video, #reader-entry video, #reader-recarga video {
         width: 100% !important;
         max-width: 100% !important;
         object-fit: cover;
