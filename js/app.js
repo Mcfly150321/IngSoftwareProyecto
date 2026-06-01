@@ -58,7 +58,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const navLinks = document.querySelectorAll('.nav-link');
     const sections = document.querySelectorAll('.content-section');
     const pageTitle = document.getElementById('page-title');
-d
     navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
