@@ -711,11 +711,75 @@ def calcular_cobro_dashboard(client_id: str, db: Session = Depends(get_db)):
     }
 
 
+def _calcular_saldo(client_id: str, db: Session) -> float:
+    # Sumar recargas y restar cobros
+    txs = db.query(models.Transaccion).filter(models.Transaccion.client_id == client_id).all()
+    recargas = sum(t.monto for t in txs if t.tipo_transaccion == "recarga")
+    cobros = sum(t.monto for t in txs if t.tipo_transaccion == "cobro")
+    return float(recargas - cobros)
+
+
+@router.get("/balance/{client_id}")
+def get_client_balance(client_id: str, db: Session = Depends(get_db)):
+    """Obtiene el saldo actual del cliente calculando todas sus transacciones."""
+    client = db.query(models.Client).filter(models.Client.client_id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+        
+    saldo = _calcular_saldo(client_id, db)
+    return {
+        "status": "ok",
+        "client_id": client_id,
+        "nombres": f"{client.nombres} {client.apellidos}",
+        "saldo": round(saldo, 2)
+    }
+
+
+@router.post("/recargar/{client_id}")
+def recargar_dashboard(client_id: str, monto: float, db: Session = Depends(get_db)):
+    """Registra una recarga manual desde el dashboard."""
+    if monto <= 0:
+        raise HTTPException(status_code=400, detail="El monto de recarga debe ser mayor a 0")
+        
+    client = db.query(models.Client).filter(models.Client.client_id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    tx = models.Transaccion(
+        client_id=client_id,
+        monto=monto,
+        tipo_transaccion="recarga",
+        fecha_hora=get_now_gt(),
+    )
+    db.add(tx)
+    db.commit()
+
+    nuevo_saldo = _calcular_saldo(client_id, db)
+    return {
+        "status": "ok",
+        "client_id": client_id,
+        "nombres": f"{client.nombres} {client.apellidos}",
+        "monto_recargado": round(monto, 2),
+        "nuevo_saldo": round(nuevo_saldo, 2)
+    }
+
+
 @router.post("/cobrar/{client_id}")
 def cobrar_automatico_dashboard(client_id: str, db: Session = Depends(get_db)):
-    """Registra el cobro desde el dashboard sin requerir prefijo de autómata."""
+    """Registra el cobro desde el dashboard verificando que tenga suficiente saldo."""
     client, ultima_entrada, minutos_totales, total_cobro = _calcular_monto(client_id, db)
 
+    # 1. Obtener saldo actual
+    saldo = _calcular_saldo(client.client_id, db)
+
+    # 2. Verificar si el saldo es suficiente
+    if saldo < float(total_cobro):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Saldo insuficiente. Saldo actual: Q{saldo:.2f}, requerido: Q{total_cobro:.2f}. Por favor, recargue saldo primero."
+        )
+
+    # 3. Registrar el cobro
     tx = models.Transaccion(
         client_id=client.client_id,
         monto=total_cobro,
@@ -729,7 +793,8 @@ def cobrar_automatico_dashboard(client_id: str, db: Session = Depends(get_db)):
         "status": "ok",
         "client_id": client.client_id,
         "nombres": client.nombres,
-        "monto_cobrado": round(total_cobro, 2)
+        "monto_cobrado": round(total_cobro, 2),
+        "saldo_restante": round(saldo - float(total_cobro), 2)
     }
 
 
