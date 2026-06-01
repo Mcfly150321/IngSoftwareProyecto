@@ -19,6 +19,10 @@
     {
       "src": "assets/**",
       "use": "@vercel/static"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -48,6 +52,10 @@
     },
     {
       "src": "/dashboard",
+      "dest": "api/main.py"
+    },
+    {
+      "src": "/registro",
       "dest": "api/main.py"
     },
     {
