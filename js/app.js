@@ -109,9 +109,64 @@ document.addEventListener('DOMContentLoaded', function() {
     // Iniciar monitoreo de conexión y stats
     updateDashboardStats();
     loadParqueosOptions();
+    loadDropdowns();
     setInterval(checkConnectionStatus, 10000);
     setInterval(updateServerDateTime, 1000);
 });
+
+async 
+async function loadDropdowns() {
+    try {
+                // 1. Obtener seqcode y client_id
+                const reqRes = await fetch(`${API_URL}/automata/client-request`, { method: 'POST' });
+                if (!reqRes.ok) throw new Error("Error generating client request");
+                const { seqcode, client_id } = await reqRes.json();
+                
+                // 2. Registrar cliente
+                clientData.seqcode = seqcode;
+                clientData.client_id = client_id;
+                
+                const clientRes = await fetch(`${API_URL}/automata/client`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(clientData)
+                });
+                
+                if (!clientRes.ok) {
+                    const errorData = await clientRes.json();
+                    throw new Error(errorData.detail || "Error al guardar registro del cliente");
+                }
+
+                // 3. Registrar entrada
+                const entRes = await fetch(`${API_URL}/automata/entrada-salida/${client_id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tipo: "entrada" })
+                });
+
+                if (!entRes.ok) {
+                    throw new Error("Error al registrar entrada en parqueo");
+                }
+
+                // 4. Utilidad: Generar Ticket y mostrarlo
+                alert(`Ticket generado exitosamente: ${client_id}. Se generará el ticket digital...`);
+                
+                const ticketRes = await fetch(`${API_URL}/utilidades/ticket/${client_id}`);
+                if (ticketRes.ok) {
+                    const ticketData = await ticketRes.json();
+                    if (ticketData.ticket_url) {
+                        window.open(ticketData.ticket_url, '_blank');
+                    }
+                }
+
+                // Limpiar formulario y actualizar vista
+                regForm.reset();
+                updateDashboardStats();
+
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            }
+}
 
 async function loadParqueosOptions() {
     const select = document.getElementById('parking');
@@ -473,12 +528,12 @@ function initTarifaForm() {
             const data = Object.fromEntries(formData.entries());
 
             const newTarifa = {
-                nombre: data.nombretarifa,
-                costo: parseFloat(data.costotarif),
-                tiempo: parseInt(data.tiempotarif)
+                tipo_vehiculo_id: parseInt(data.tipo_vehiculo_id),
+                unidad_tiempo_id: parseInt(data.unidad_tiempo_id),
+                costo: parseFloat(data.costotarif)
             };
 
-            const url = `${API_URL}/newtarifa`;
+            const url = `${API_URL}/tarifas/`;
             try {
                 const res = await fetch(url, {
                     method: 'POST',
@@ -487,7 +542,7 @@ function initTarifaForm() {
                 });
                 const result = await res.json();
                 if (!res.ok) throw new Error(result.detail || 'Error al crear tarifa');
-                alert(`✅ Tarifa "${result.nombre}" creada exitosamente.`);
+                alert(`✅ Tarifa creada exitosamente.`);
                 addTarifaForm.reset();
 
             } catch (err) {
@@ -502,35 +557,8 @@ function initTarifaForm() {
  */
 
 function initRegistrationForm() {
-    const checkboxCF = document.getElementById('mostrarFormCF');
-    const checkboxCliente = document.getElementById('mostrarFormCliente');
-    const containerCliente = document.getElementById('cliente-data-container');
     const regForm = document.getElementById('registration-form');
-
-    if (!checkboxCF || !checkboxCliente || !regForm) return;
-
-    const updateFormVisibility = () => {
-        const inputs = containerCliente.querySelectorAll('input:not(#phone)');
-        if (checkboxCliente.checked) {
-            containerCliente.style.display = 'contents';
-            inputs.forEach(i => i.setAttribute('required', ''));
-        } else {
-            containerCliente.style.display = 'none';
-            inputs.forEach(i => i.removeAttribute('required'));
-        }
-    };
-
-    checkboxCF.addEventListener('change', () => {
-        if (checkboxCF.checked) checkboxCliente.checked = false;
-        else checkboxCliente.checked = true;
-        updateFormVisibility();
-    });
-
-    checkboxCliente.addEventListener('change', () => {
-        if (checkboxCliente.checked) checkboxCF.checked = false;
-        else checkboxCliente.checked = true;
-        updateFormVisibility();
-    });
+    if (!regForm) return;
 
     regForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -541,10 +569,10 @@ function initRegistrationForm() {
             const data = Object.fromEntries(formData.entries());
 
             const clientData = {
-                nombres: data.nombres || data.names || "",
-                apellidos: data.apellidos || data.lastnames || "",
-                dpi: data.dpi || data.nit || "",
-                placa: data.placa || data.phone || "", // Fallback si el HTML no se ha actualizado
+                nombres: data.nombres || "",
+                apellidos: data.apellidos || "",
+                dpi: data.dpi || "",
+                placa: data.placa || "", 
                 tipo_vehiculo_id: parseInt(data.tipo_vehiculo_id || 1)
             };
 
@@ -584,7 +612,6 @@ function initRegistrationForm() {
                 
                 // Limpiar formulario y actualizar vista
                 regForm.reset();
-                if (typeof updateFormVisibility === 'function') updateFormVisibility();
                 updateDashboardStats();
 
             } catch (err) {
@@ -592,8 +619,6 @@ function initRegistrationForm() {
             }
         });
     });
-
-    updateFormVisibility();
 }
 /**
  * SECCION: PAGOS (ESCÁNER DE SALIDA)
@@ -679,15 +704,17 @@ async function onScanSuccessPagos(decodedText) {
             const res = await fetch(`${API_URL}/automata/calcular-cobro/${encodeURIComponent(decodedText)}`, { method: "GET" });
             const data = await res.json();
             
-            if (!res.ok) throw new Error(data.detail || "ID no válido o vehículo ya pagado");
-
-            if (data.status === "exited") {
-                playBeepScanner();
-                showResultUI_ExitSuccess(data);
-            } else {
-                playBeepScanner();
-                showResultUI_Pagos(data);
+            if (!res.ok) {
+                if (data.detail === "exited") {
+                    playBeepScanner();
+                    showResultUI_ExitSuccess({ client_name: decodedText, message: "Vehículo ya registrado con salida" });
+                    return;
+                }
+                throw new Error(data.detail || "ID no válido o vehículo ya pagado");
             }
+
+            playBeepScanner();
+            showResultUI_Pagos(data);
         } catch (err) {
             playErrorBeepScanner();
             showResultUI_Error(err.message);
@@ -705,13 +732,13 @@ function showResultUI_Pagos(data) {
     const btnConfirm = document.getElementById("btnConfirmPay-scanner");
 
     currentScanId = data.client_id;
-    resultName.textContent = data.client_name;
+    resultName.textContent = data.nombres;
     
     // Fill Invoice Details
-    document.getElementById("inv-nit").textContent = data.client_nit;
-    document.getElementById("inv-entry").textContent = new Date(data.entry_time).toLocaleTimeString();
-    document.getElementById("inv-exit").textContent = new Date(data.lastscanhour).toLocaleTimeString();
-    document.getElementById("inv-total").textContent = `Q${data.total.toFixed(2)}`;
+    document.getElementById("inv-nit").textContent = data.client_id; // Ya no hay NIT, mostramos ID
+    document.getElementById("inv-entry").textContent = new Date(data.ultima_entrada).toLocaleTimeString();
+    document.getElementById("inv-exit").textContent = new Date().toLocaleTimeString();
+    document.getElementById("inv-total").textContent = `Q${data.total_cobrar.toFixed(2)}`;
     
     invoiceDetails.style.display = "block";
     btnNext.style.display = "none";
@@ -792,13 +819,8 @@ async function confirmCurrentPayment() {
     
     await withLoading(btn, async () => {
         try {
-            const res = await fetch(`${API_URL}/automata/transaccion/${currentScanId}`, { 
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    tipo_transaccion: "cobro",
-                    monto: parseFloat(document.getElementById("inv-total").textContent.replace("Q",""))
-                })
+            const res = await fetch(`${API_URL}/automata/cobrar/${currentScanId}`, { 
+                method: 'POST'
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || "Error al procesar pago");
@@ -807,13 +829,13 @@ async function confirmCurrentPayment() {
             btn.style.display = "none";
             document.getElementById("btnNext-scanner").style.display = "block";
             document.getElementById("inv-total").style.color = "#10b981";
-            document.getElementById("inv-total").textContent = `Q${data.total.toFixed(2)} [PAGADO]`;
+            document.getElementById("inv-total").textContent = `Q${data.monto_cobrado.toFixed(2)} [PAGADO]`;
             
             updateDashboardStats();
 
             // Auto-reset after 1.5 seconds
             setTimeout(() => {
-                if (currentScanId === data.Client_id) { // Solo si no han escaneado a alguien más (seguridad)
+                if (currentScanId === data.client_id) { // Solo si no han escaneado a alguien más (seguridad)
                     resetForNextScanner();
                 }
             }, 1500);

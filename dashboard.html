@@ -110,16 +110,20 @@
                     <h2>Agregar Tarifa</h2>
                     <form id="add-tarifa-form">
                         <div class="form-group">
-                            <label for="nombretarifa">Nombre</label>
-                            <input type="text" id="nombretarifa" name="nombretarifa" required>
+                            <label for="tipo_vehiculo_id_tarifa">Tipo de Vehículo</label>
+                            <select id="tipo_vehiculo_id_tarifa" name="tipo_vehiculo_id" required>
+                                <option value="">Cargando tipos...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="unidad_tiempo_id">Unidad de Tiempo</label>
+                            <select id="unidad_tiempo_id" name="unidad_tiempo_id" required>
+                                <option value="">Cargando unidades...</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label for="costotarif">Costo (Q)</label>
                             <input type="number" id="costotarif" name="costotarif" step="0.01" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="tiempotarif">Duración (minutos)</label>
-                            <input type="number" id="tiempotarif" name="tiempotarif" min="1" required>
                         </div>
                         <button type="submit" class="btn-primary" id="submittarifa">Agregar Tarifa</button>
                     </form>
@@ -207,47 +211,34 @@
                 <div class="card">
                     <h2 id="inscripcion-title">Nuevo Ticket</h2>
 
-                    <label>
-                        <input type="checkbox" id="mostrarFormCF" checked> C/F
-                    </label>
-
-                    <label>
-                        <input type="checkbox" id="mostrarFormCliente"> Datos Cliente
-                    </label>
-
                     <form id="registration-form">
                         <input type="hidden" id="edit-idclient" name="idclient">
                         <div class="form-grid">
-                            <!-- Contenedor toggleable para datos del cliente -->
-                            <div id="cliente-data-container" style="display: contents;">
-                                <div class="form-group">
-                                    <label for="names">Nombres</label>
-                                    <input type="text" id="names" name="names" required>
-                                </div>
-                                <div class="form-group">
-                                    <label for="lastnames">Apellidos</label>
-                                    <input type="text" id="lastnames" name="lastnames" required>
-                                </div>
-                                <div class="form-group" id="group-nit">
-                                    <label>NIT</label>
-                                    <input type="number" id="nit" name="nit" required>
-                                </div>
-                            </div> <!-- Cierre datos cliente -->
-
                             <div class="form-group">
-                                <label for="phone">Celular</label>
-                                <input type="number" id="phone" name="phone" required>
+                                <label for="nombres">Nombres</label>
+                                <input type="text" id="nombres" name="nombres" required>
                             </div>
-
                             <div class="form-group">
-                                <label for="parking">Parqueo</label>
-                                <select id="parking" name="parqueo_id" required>
-                                    <option value="">Cargando parqueos...</option>
+                                <label for="apellidos">Apellidos</label>
+                                <input type="text" id="apellidos" name="apellidos" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="dpi">DPI</label>
+                                <input type="number" id="dpi" name="dpi" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="placa">Placa</label>
+                                <input type="text" id="placa" name="placa" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="tipo_vehiculo_id_reg">Tipo de Vehículo</label>
+                                <select id="tipo_vehiculo_id_reg" name="tipo_vehiculo_id" required>
+                                    <option value="">Cargando tipos...</option>
                                 </select>
                             </div>
                         </div>
                         <div style="margin-top: 20px; display: flex; gap: 10px;">
-                            <button type="submit" class="btn-primary" id="submit-Client-btn">Ingresar Persona</button>
+                            <button type="submit" class="btn-primary" id="submit-Client-btn">Ingresar Vehículo</button>
                             <button type="button" class="btn-secondary" id="cancel-edit-btn" style="display: none;">Cancelar</button>
                         </div>
                     </form>

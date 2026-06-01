@@ -434,6 +434,17 @@ def _calcular_monto(client_id: str, db: Session):
 
     if not ultima_entrada:
         raise HTTPException(status_code=400, detail="El cliente no tiene ninguna entrada registrada")
+        
+    ultima_salida = (
+        db.query(models.EntradaSalida)
+        .filter(models.EntradaSalida.client_id == client_id, models.EntradaSalida.tipo == "salida")
+        .order_by(models.EntradaSalida.fecha_hora.desc())
+        .first()
+    )
+
+    if ultima_salida and ultima_salida.fecha_hora > ultima_entrada.fecha_hora:
+        # El vehículo ya salió, no hay cobro pendiente
+        raise HTTPException(status_code=400, detail="exited")
     
     ahora = get_now_gt()
     diferencia = ahora - ultima_entrada.fecha_hora
@@ -581,8 +592,38 @@ def list_transacciones(db: Session = Depends(get_db)):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# UTILIDADES (Generación de Tickets, QRs, Cloudinary)
+# ═════════════════════════════════════════════════════════════════════════════
+utilidades = APIRouter(prefix="/utilidades")
+
+@utilidades.get("/ticket/{client_id}")
+def generar_ticket_nube(client_id: str, db: Session = Depends(get_db)):
+    """
+    Toma un client_id, genera su código QR, arma la imagen del ticket,
+    la sube a Cloudinary y devuelve la URL para ser mostrada o descargada.
+    """
+    client = db.query(models.Client).filter(models.Client.client_id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    try:
+        qr_path = generar_qr(client.client_id)
+        img_path = generar_imgticket(client.client_id, qr_path)
+        cloudinary_url = subir_imagen(img_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando utilidades de ticket: {str(e)}")
+
+    return {
+        "status": "ok",
+        "client_id": client.client_id,
+        "nombres": client.nombres,
+        "ticket_url": cloudinary_url
+    }
+
+# ═════════════════════════════════════════════════════════════════════════════
 # Registrar routers
 # ═════════════════════════════════════════════════════════════════════════════
 
 app.include_router(router)
 app.include_router(automata)
+app.include_router(utilidades)
