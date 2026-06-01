@@ -114,8 +114,18 @@ class Client(Base):
 
     request = relationship("ClientRequest", back_populates="client")
     tipo_vehiculo = relationship("TipoVehiculo", back_populates="clients")
-    entradas_salidas = relationship("EntradaSalida", back_populates="client")
-    transacciones = relationship("Transaccion", back_populates="client")
+    entradas_salidas = relationship(
+        "EntradaSalida",
+        primaryjoin="Client.client_id == EntradaSalida.client_id",
+        foreign_keys="[EntradaSalida.client_id]",
+        back_populates="client"
+    )
+    transacciones = relationship(
+        "Transaccion",
+        primaryjoin="Client.client_id == Transaccion.client_id",
+        foreign_keys="[Transaccion.client_id]",
+        back_populates="client"
+    )
 
 
 class EntradaSalida(Base):
@@ -126,7 +136,12 @@ class EntradaSalida(Base):
     fecha_hora = Column(DateTime, nullable=False)
     tipo = Column(String, nullable=False)  # "entrada" | "salida"
 
-    client = relationship("Client", back_populates="entradas_salidas")
+    client = relationship(
+        "Client",
+        primaryjoin="Client.client_id == EntradaSalida.client_id",
+        foreign_keys="[EntradaSalida.client_id]",
+        back_populates="entradas_salidas"
+    )
 
 
 # ─────────────────────────────────────────────
@@ -142,4 +157,9 @@ class Transaccion(Base):
     tipo_transaccion = Column(String, nullable=False)  # "recarga" | "cobro"
     fecha_hora = Column(DateTime, nullable=False)
 
-    client = relationship("Client", back_populates="transacciones")
+    client = relationship(
+        "Client",
+        primaryjoin="Client.client_id == Transaccion.client_id",
+        foreign_keys="[Transaccion.client_id]",
+        back_populates="transacciones"
+    )

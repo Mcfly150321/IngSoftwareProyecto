@@ -98,7 +98,7 @@ def read_dashboard(request: Request):
 
 @app.get("/registro")
 def registro_publico():
-    path = os.path.join(os.path.dirname(__file__), "..", "public", "registro.html")
+    path = os.path.join(os.path.dirname(__file__), "registro.html")
     return FileResponse(path)
 
 

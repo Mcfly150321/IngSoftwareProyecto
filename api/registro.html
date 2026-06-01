@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro Público de Clientes | Sistema Parqueo</title>
+    
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --primary-glow: rgba(37, 99, 235, 0.15);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.15);
+            --danger: #ef4444;
+            --background: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(226, 232, 240, 0.08);
+            --border-focus: #3b82f6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b, #0f172a 70%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 540px;
+            perspective: 1000px;
+        }
+
+        /* Glassmorphism Card styling */
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 
+                        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo-icon {
+            font-size: 3rem;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+            filter: drop-shadow(0 4px 12px var(--primary-glow));
+            animation: float 4s ease-in-out infinite;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* Form styling */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .full-width {
+            grid-column: span 2;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 14px;
+            color: var(--text-muted);
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 14px 14px 14px 40px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            appearance: none; /* remove default arrow in select */
+        }
+
+        select {
+            cursor: pointer;
+            padding-right: 40px;
+        }
+
+        .select-arrow {
+            position: absolute;
+            right: 14px;
+            pointer-events: none;
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        input::placeholder {
+            color: rgba(148, 163, 184, 0.4);
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            background: rgba(15, 23, 42, 0.8);
+            box-shadow: 0 0 0 4px var(--primary-glow);
+        }
+
+        input:focus + i, select:focus + i {
+            color: var(--border-focus);
+        }
+
+        /* Submit Button */
+        button[type="submit"] {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--primary), #4f46e5);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 20px var(--primary-glow);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-top: 10px;
+        }
+
+        button[type="submit"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px var(--primary-glow);
+            background: linear-gradient(135deg, #1d4ed8, #4338ca);
+        }
+
+        button[type="submit"]:active {
+            transform: translateY(0);
+        }
+
+        button[type="submit"]:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Success & Error State overlays/panels */
+        .state-container {
+            display: none;
+            text-align: center;
+            padding: 20px 0;
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        .success-icon-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--success-glow);
+            border: 2px solid var(--success);
+            color: var(--success);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            margin: 0 auto 20px;
+            box-shadow: 0 8px 30px var(--success-glow);
+            animation: popScale 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        .state-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .state-msg {
+            color: var(--text-muted);
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        #message-box {
+            margin-top: 20px;
+        }
+
+        .alert {
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid transparent;
+            animation: slideDown 0.3s ease forwards;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+        }
+
+        /* Keyframes */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes popScale {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .card {
+                padding: 24px 20px;
+                border-radius: 20px;
+            }
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            .full-width {
+                grid-column: span 1;
+            }
+            h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="card" id="formCard">
+            <!-- Form Header -->
+            <div class="header" id="formHeader">
+                <div class="logo-icon">
+                    <i class="fas fa-qrcode"></i>
+                </div>
+                <h1>Registro de Cliente</h1>
+                <p class="subtitle">Complete sus datos para activar plenamente su ticket en el parqueo.</p>
+            </div>
+
+            <!-- Form Body -->
+            <form id="registroForm">
+                <div class="form-grid">
+                    <!-- Ticket ID & Security Code (autofill potential) -->
+                    <div class="form-group">
+                        <label for="client_id">ID de Ticket</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="client_id" name="client_id" placeholder="TKT-XXXX..." required>
+                            <i class="fas fa-ticket-alt"></i>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="seqcode">Código de Seguridad</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="seqcode" name="seqcode" placeholder="Código de 6 dígitos" required>
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                    </div>
+
+                    <!-- Personal Information -->
+                    <div class="form-group">
+                        <label for="nombres">Nombres</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="nombres" name="nombres" placeholder="Ingrese sus nombres" required>
+                            <i class="fas fa-user"></i>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="apellidos">Apellidos</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="apellidos" name="apellidos" placeholder="Ingrese sus apellidos" required>
+                            <i class="fas fa-user-friends"></i>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dpi">CUI / DPI</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="dpi" name="dpi" placeholder="Documento personal de ID" required>
+                            <i class="fas fa-id-card"></i>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="placa">Placa</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="placa" name="placa" placeholder="Ej. P123ABC" required>
+                            <i class="fas fa-car-side"></i>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tipo_vehiculo_id">Tipo de Vehículo</label>
+                        <div class="input-wrapper">
+                            <select id="tipo_vehiculo_id" name="tipo_vehiculo_id" required>
+                                <option value="" disabled selected>Cargando tipos...</option>
+                            </select>
+                            <i class="fas fa-truck-monster"></i>
+                            <i class="fas fa-chevron-down select-arrow"></i>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="numero">WhatsApp / Teléfono</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="numero" name="numero" placeholder="Para alertas y cobros" required>
+                            <i class="fab fa-whatsapp"></i>
+                        </div>
+                    </div>
+
+                    <div class="full-width" id="message-box"></div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="full-width" id="submitBtn">
+                        <span id="btnText">Confirmar y Registrar</span>
+                        <i class="fas fa-arrow-right" id="btnIcon"></i>
+                    </button>
+                </div>
+            </form>
+
+            <!-- Success State Panel -->
+            <div class="state-container" id="successPanel">
+                <div class="success-icon-circle">
+                    <i class="fas fa-check"></i>
+                </div>
+                <h2 class="state-title">¡Registro Exitoso!</h2>
+                <p class="state-msg" id="successMsg">Su registro de ticket se ha completado perfectamente. Ya puede proceder a realizar pagos o recargar su saldo.</p>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <a href="/" style="display: block; width: 100%; text-decoration: none;">
+                        <button type="button" style="width: 100%; padding: 14px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 12px; color: var(--text-main); font-weight: 600; cursor: pointer; transition: all 0.3s ease;">Ir al Inicio</button>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = `${window.location.origin}/api`;
+
+        // 1. Cargar Query Params dinámicamente si vienen en el URL
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const ticketId = urlParams.get('ticket_id') || urlParams.get('client_id') || '';
+            const seqCode = urlParams.get('seqcode') || urlParams.get('code') || '';
+            
+            if (ticketId) document.getElementById('client_id').value = ticketId;
+            if (seqCode) document.getElementById('seqcode').value = seqCode;
+
+            loadTiposVehiculo();
+        });
+
+        // 2. Fetch de tipos de vehículos para el select
+        async function loadTiposVehiculo() {
+            const select = document.getElementById('tipo_vehiculo_id');
+            try {
+                const res = await fetch(`${API_URL}/tipos-vehiculo/`);
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                
+                select.innerHTML = '<option value="" disabled selected>Seleccione tipo...</option>';
+                data.forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.nombre;
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                select.innerHTML = '<option value="" disabled>Error al cargar tipos</option>';
+            }
+        }
+
+        // 3. Envío del Formulario
+        const form = document.getElementById('registroForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        const btnIcon = document.getElementById('btnIcon');
+        const messageBox = document.getElementById('message-box');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Limpiar alertas previas
+            messageBox.innerHTML = '';
+            
+            // Activar estado de carga
+            submitBtn.disabled = true;
+            btnText.textContent = 'Procesando...';
+            btnIcon.className = 'fas fa-spinner fa-spin';
+
+            const formData = new FormData(form);
+            const bodyData = {
+                client_id: formData.get('client_id').trim(),
+                seqcode: formData.get('seqcode').trim(),
+                nombres: formData.get('nombres').trim(),
+                apellidos: formData.get('apellidos').trim(),
+                dpi: formData.get('dpi').trim(),
+                placa: formData.get('placa').trim().toUpperCase(),
+                tipo_vehiculo_id: parseInt(formData.get('tipo_vehiculo_id')),
+                numero: parseInt(formData.get('numero'))
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/automata/client`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bodyData)
+                });
+                
+                const result = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(result.detail || 'Error al procesar el registro.');
+                }
+
+                // Ocultar formulario y mostrar éxito
+                form.style.display = 'none';
+                document.getElementById('formHeader').style.display = 'none';
+                
+                const successMsg = document.getElementById('successMsg');
+                successMsg.innerHTML = `Su vehículo <b>${bodyData.nombres} ${bodyData.apellidos}</b> con placa <b>${bodyData.placa}</b> se ha registrado y activado con éxito en el sistema bajo el Ticket <b>${bodyData.client_id}</b>.`;
+                
+                document.getElementById('successPanel').style.display = 'block';
+
+            } catch (err) {
+                // Mostrar banner de error en la UI
+                messageBox.innerHTML = `
+                    <div class="alert alert-error">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>${err.message}</span>
+                    </div>
+                `;
+                
+                // Restaurar botón
+                submitBtn.disabled = false;
+                btnText.textContent = 'Confirmar y Registrar';
+                btnIcon.className = 'fas fa-arrow-right';
+            }
+        });
+    </script>
+</body>
+</html>
