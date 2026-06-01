@@ -109,6 +109,8 @@ class Client(Base):
     client_id = Column(String, ForeignKey("client_requests.client_id"), unique=True, nullable=False)
     tipo_vehiculo_id = Column(Integer, ForeignKey("tipos_vehiculo.id"), nullable=False, default=1)  # default: Carro
     placa = Column(String, nullable=False)
+    numero = Column(Integer, nullable=True)
+    ticket_url = Column(String, nullable=True)
 
     request = relationship("ClientRequest", back_populates="client")
     tipo_vehiculo = relationship("TipoVehiculo", back_populates="clients")

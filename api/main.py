@@ -582,7 +582,8 @@ def create_client_dashboard(data: schemas.ClientCreateDashboard, db: Session = D
     """
     Registro desde el dashboard (operario/gerente).
     El backend genera el seqcode y client_id internamente.
-    Devuelve el client_id generado para que el front registre la entrada.
+    Genera el QR, la imagen del ticket, la sube a Cloudinary y guarda su URL.
+    Devuelve los datos del ticket y el enlace para enviar a WhatsApp.
     """
     seqcode = generar_codigo_verificacion()
     client_id = generate_idticket(db)
@@ -595,6 +596,15 @@ def create_client_dashboard(data: schemas.ClientCreateDashboard, db: Session = D
     db.add(req)
     db.flush()  # Para que el client_id quede disponible antes del commit
 
+    # Generar QR, imagen y subir a Cloudinary
+    cloudinary_url = None
+    try:
+        qr_path = generar_qr(client_id)
+        img_path = generar_imgticket(client_id, qr_path)
+        cloudinary_url = subir_imagen(img_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al generar y subir la imagen del ticket: {str(e)}")
+
     db_client = models.Client(
         nombres=data.nombres,
         apellidos=data.apellidos,
@@ -602,11 +612,29 @@ def create_client_dashboard(data: schemas.ClientCreateDashboard, db: Session = D
         client_id=client_id,
         tipo_vehiculo_id=data.tipo_vehiculo_id,
         placa=data.placa,
+        numero=data.numero,
+        ticket_url=cloudinary_url,
     )
     db.add(db_client)
     db.commit()
 
-    return {"status": "ok", "client_id": client_id}
+    # Generar el link de WhatsApp si tiene número
+    whatsapp_url = ""
+    if data.numero:
+        phone_str = str(data.numero)
+        phone = f"502{phone_str}" if len(phone_str) == 8 else phone_str
+        
+        import urllib.parse
+        mensaje = f"Hola {data.nombres}, aquí está tu ticket de parqueo: {cloudinary_url}"
+        mensaje_encoded = urllib.parse.quote(mensaje)
+        whatsapp_url = f"https://api.whatsapp.com/send?phone={phone}&text={mensaje_encoded}"
+
+    return {
+        "status": "ok", 
+        "client_id": client_id,
+        "ticket_url": cloudinary_url,
+        "whatsapp_url": whatsapp_url
+    }
 
 
 @router.get("/clients/{client_id}", response_model=schemas.ClientSchema)

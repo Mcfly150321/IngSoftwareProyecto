@@ -117,6 +117,7 @@ class ClientCreateDashboard(BaseModel):
     dpi: str
     placa: str
     tipo_vehiculo_id: Optional[int] = 1  # default Carro
+    numero: Optional[int] = None
 
 class ClientSchema(BaseModel):
     id: int
@@ -126,6 +127,8 @@ class ClientSchema(BaseModel):
     client_id: str
     tipo_vehiculo_id: int
     placa: str
+    numero: Optional[int] = None
+    ticket_url: Optional[str] = None
 
     class Config:
         from_attributes = True

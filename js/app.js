@@ -578,7 +578,8 @@ function initRegistrationForm() {
                 apellidos: data.apellidos || "",
                 dpi: data.dpi || "",
                 placa: data.placa || "", 
-                tipo_vehiculo_id: parseInt(data.tipo_vehiculo_id || 1)
+                tipo_vehiculo_id: parseInt(data.tipo_vehiculo_id || 1),
+                numero: data.numero ? parseInt(data.numero) : null
             };
 
             try {
@@ -594,7 +595,7 @@ function initRegistrationForm() {
                     throw new Error(errorData.detail || "Error al guardar registro del cliente");
                 }
 
-                const { client_id } = await clientRes.json();
+                const { client_id, ticket_url, whatsapp_url } = await clientRes.json();
 
                 // 2. Registrar entrada directa
                 const entRes = await fetch(`${API_URL}/entradas-salidas/`, {
@@ -607,15 +608,15 @@ function initRegistrationForm() {
                     throw new Error("Error al registrar entrada en parqueo");
                 }
 
-                // 4. Utilidad: Generar Ticket y mostrarlo
-                alert(`Ticket generado exitosamente: ${client_id}. Se generará el ticket digital...`);
+                // 3. Mostrar ticket y abrir WhatsApp si aplica
+                alert(`¡Vehículo ingresado y ticket generado exitosamente!\nTicket ID: ${client_id}`);
                 
-                const ticketRes = await fetch(`${API_URL}/utilidades/ticket/${client_id}`);
-                if (ticketRes.ok) {
-                    const ticketData = await ticketRes.json();
-                    if (ticketData.ticket_url) {
-                        window.open(ticketData.ticket_url, '_blank');
-                    }
+                if (ticket_url) {
+                    window.open(ticket_url, '_blank');
+                }
+                
+                if (whatsapp_url) {
+                    window.open(whatsapp_url, '_blank');
                 }
 
                 // Limpiar formulario y actualizar vista
