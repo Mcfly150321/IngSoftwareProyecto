@@ -392,6 +392,29 @@ def create_client(data: schemas.ClientCreate, db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 
+def _verificar_pago_salida(client_id: str, db: Session):
+    # Buscar el último cobro para este cliente
+    ultimo_cobro = (
+        db.query(models.Transaccion)
+        .filter(models.Transaccion.client_id == client_id, models.Transaccion.tipo_transaccion == "cobro")
+        .order_by(models.Transaccion.fecha_hora.desc())
+        .first()
+    )
+    if not ultimo_cobro:
+        raise HTTPException(
+            status_code=400,
+            detail="Debe realizar el pago antes de salir de la garita."
+        )
+
+    ahora = get_now_gt()
+    tiempo_transcurrido = ahora - ultimo_cobro.fecha_hora
+    if tiempo_transcurrido > datetime.timedelta(minutes=15):
+        raise HTTPException(
+            status_code=400,
+            detail="El tiempo de cortesía de 15 minutos ha expirado. Por favor, realice el pago nuevamente."
+        )
+
+
 @automata.post("/entrada-salida/{client_id}")
 def create_entrada_salida(client_id: str, data: schemas.EntradaSalidaCreate, db: Session = Depends(get_db)):
     """
@@ -408,6 +431,9 @@ def create_entrada_salida(client_id: str, data: schemas.EntradaSalidaCreate, db:
     ).first()
     if not client:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    if data.tipo == "salida":
+        _verificar_pago_salida(client_id, db)
 
     registro = models.EntradaSalida(
         client_id=client_id,
@@ -547,12 +573,44 @@ def create_transaccion(client_id: str, data: schemas.TransaccionCreate, db: Sess
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# CLIENTES (consultas desde el dashboard)
+# CLIENTES (dashboard — el backend genera el ticket ID internamente)
 # ═════════════════════════════════════════════════════════════════════════════
 
 @router.get("/clients/", response_model=List[schemas.ClientSchema])
 def list_clients(db: Session = Depends(get_db)):
     return db.query(models.Client).all()
+
+
+@router.post("/clients/")
+def create_client_dashboard(data: schemas.ClientCreateDashboard, db: Session = Depends(get_db)):
+    """
+    Registro desde el dashboard (operario/gerente).
+    El backend genera el seqcode y client_id internamente.
+    Devuelve el client_id generado para que el front registre la entrada.
+    """
+    seqcode = generar_codigo_verificacion()
+    client_id = generate_idticket(db)
+
+    # Crear el ClientRequest primero (FK requerida)
+    req = models.ClientRequest(
+        security_code=seqcode,
+        client_id=client_id,
+    )
+    db.add(req)
+    db.flush()  # Para que el client_id quede disponible antes del commit
+
+    db_client = models.Client(
+        nombres=data.nombres,
+        apellidos=data.apellidos,
+        dpi=data.dpi,
+        client_id=client_id,
+        tipo_vehiculo_id=data.tipo_vehiculo_id,
+        placa=data.placa,
+    )
+    db.add(db_client)
+    db.commit()
+
+    return {"status": "ok", "client_id": client_id}
 
 
 @router.get("/clients/{client_id}", response_model=schemas.ClientSchema)
@@ -564,7 +622,7 @@ def get_client(client_id: str, db: Session = Depends(get_db)):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# ENTRADAS / SALIDAS (consultas desde el dashboard)
+# ENTRADAS / SALIDAS (dashboard)
 # ═════════════════════════════════════════════════════════════════════════════
 
 @router.get("/entradas-salidas/", response_model=List[schemas.EntradaSalidaSchema])
@@ -575,6 +633,30 @@ def list_entradas_salidas(db: Session = Depends(get_db)):
         .limit(200)
         .all()
     )
+
+
+@router.post("/entradas-salidas/", response_model=schemas.EntradaSalidaSchema)
+def create_entrada_salida_dashboard(data: schemas.EntradaSalidaDashboard, db: Session = Depends(get_db)):
+    """Registra una entrada o salida desde el dashboard. El tipo lo envía el cliente."""
+    if data.tipo not in ("entrada", "salida"):
+        raise HTTPException(status_code=400, detail="tipo debe ser 'entrada' o 'salida'")
+
+    client = db.query(models.Client).filter(models.Client.client_id == data.client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    if data.tipo == "salida":
+        _verificar_pago_salida(data.client_id, db)
+
+    registro = models.EntradaSalida(
+        client_id=data.client_id,
+        fecha_hora=get_now_gt(),
+        tipo=data.tipo,
+    )
+    db.add(registro)
+    db.commit()
+    db.refresh(registro)
+    return registro
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -589,6 +671,42 @@ def list_transacciones(db: Session = Depends(get_db)):
         .limit(200)
         .all()
     )
+
+
+@router.get("/calcular-cobro/{client_id}")
+def calcular_cobro_dashboard(client_id: str, db: Session = Depends(get_db)):
+    """Calcula el cobro sin requerir el prefijo de autómata."""
+    client, ultima_entrada, minutos_totales, total_cobro = _calcular_monto(client_id, db)
+    return {
+        "status": "ok",
+        "client_id": client.client_id,
+        "nombres": client.nombres,
+        "ultima_entrada": ultima_entrada.fecha_hora,
+        "minutos_totales": minutos_totales,
+        "total_cobrar": round(total_cobro, 2)
+    }
+
+
+@router.post("/cobrar/{client_id}")
+def cobrar_automatico_dashboard(client_id: str, db: Session = Depends(get_db)):
+    """Registra el cobro desde el dashboard sin requerir prefijo de autómata."""
+    client, ultima_entrada, minutos_totales, total_cobro = _calcular_monto(client_id, db)
+
+    tx = models.Transaccion(
+        client_id=client.client_id,
+        monto=total_cobro,
+        tipo_transaccion="cobro",
+        fecha_hora=get_now_gt(),
+    )
+    db.add(tx)
+    db.commit()
+
+    return {
+        "status": "ok",
+        "client_id": client.client_id,
+        "nombres": client.nombres,
+        "monto_cobrado": round(total_cobro, 2)
+    }
 
 
 # ═════════════════════════════════════════════════════════════════════════════

@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const navLinks = document.querySelectorAll('.nav-link');
     const sections = document.querySelectorAll('.content-section');
     const pageTitle = document.getElementById('page-title');
-
+d
     navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
@@ -515,16 +515,8 @@ function initRegistrationForm() {
             };
 
             try {
-                // 1. Obtener seqcode y client_id
-                const reqRes = await fetch(`${API_URL}/automata/client-request`, { method: 'POST' });
-                if (!reqRes.ok) throw new Error("Error generating client request");
-                const { seqcode, client_id } = await reqRes.json();
-                
-                // 2. Registrar cliente
-                clientData.seqcode = seqcode;
-                clientData.client_id = client_id;
-                
-                const clientRes = await fetch(`${API_URL}/automata/client`, {
+                // 1. Registrar cliente directo
+                const clientRes = await fetch(`${API_URL}/clients/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(clientData)
@@ -535,11 +527,13 @@ function initRegistrationForm() {
                     throw new Error(errorData.detail || "Error al guardar registro del cliente");
                 }
 
-                // 3. Registrar entrada
-                const entRes = await fetch(`${API_URL}/automata/entrada-salida/${client_id}`, {
+                const { client_id } = await clientRes.json();
+
+                // 2. Registrar entrada directa
+                const entRes = await fetch(`${API_URL}/entradas-salidas/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tipo: "entrada" })
+                    body: JSON.stringify({ client_id, tipo: "entrada" })
                 });
 
                 if (!entRes.ok) {
@@ -648,7 +642,7 @@ async function onScanSuccessPagos(decodedText) {
     setTimeout(async () => {
         try {
             const dateStr = new Date().toISOString().split('T')[0];
-            const res = await fetch(`${API_URL}/automata/calcular-cobro/${encodeURIComponent(decodedText)}`, { method: "GET" });
+            const res = await fetch(`${API_URL}/calcular-cobro/${encodeURIComponent(decodedText)}`, { method: "GET" });
             const data = await res.json();
             
             if (!res.ok) {
@@ -766,7 +760,7 @@ async function confirmCurrentPayment() {
     
     await withLoading(btn, async () => {
         try {
-            const res = await fetch(`${API_URL}/automata/cobrar/${currentScanId}`, { 
+            const res = await fetch(`${API_URL}/cobrar/${currentScanId}`, { 
                 method: 'POST'
             });
             const data = await res.json();
@@ -863,10 +857,11 @@ async function onScanSuccessExit(decodedText) {
 
     setTimeout(async () => {
         try {
-            const res = await fetch(`${API_URL}/automata/entrada-salida/${encodeURIComponent(decodedText)}`, { 
+            const res = await fetch(`${API_URL}/entradas-salidas/`, { 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    client_id: decodedText,
                     tipo: "salida"
                 })
             });
@@ -881,7 +876,7 @@ async function onScanSuccessExit(decodedText) {
             const errorCircle = document.getElementById("errorCircle-exit");
             const nameEl = document.getElementById("scanResultName-exit");
 
-            nameEl.textContent = `${data.client_name}: ${data.message}`;
+            nameEl.textContent = `Salida registrada exitosamente (Ticket: ${data.client_id})`;
             successCircle.style.display = "flex";
             errorCircle.style.display = "none";
             overlay.classList.add("active");

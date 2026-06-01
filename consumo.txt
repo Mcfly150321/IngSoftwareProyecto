@@ -34,7 +34,7 @@ Valida el `seqcode` y `client_id` obtenidos en el paso anterior y registra al cl
       "apellidos": "Pérez",
       "dpi": "3000123450101",
       "placa": "P123ABC",
-      "tipo_vehiculo_id": 1
+      "tipo_vehiculo_id": 4
     }
     ```
 *   **Respuesta Exitosa (200 OK):**

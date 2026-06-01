@@ -100,9 +100,18 @@ class ClientRequestResponse(BaseModel):
 
 
 class ClientCreate(BaseModel):
-    """Datos para registrar un cliente. Requiere seqcode + client_id para validar contra client_requests."""
+    """Datos para registrar un cliente desde el autómata. Requiere seqcode + client_id para validar contra client_requests."""
     seqcode: str
     client_id: str
+    nombres: str
+    apellidos: str
+    dpi: str
+    placa: str
+    tipo_vehiculo_id: Optional[int] = 1  # default Carro
+
+
+class ClientCreateDashboard(BaseModel):
+    """Datos para registrar un cliente desde el dashboard. El backend genera seqcode y client_id."""
     nombres: str
     apellidos: str
     dpi: str
@@ -125,6 +134,13 @@ class ClientSchema(BaseModel):
 class EntradaSalidaCreate(BaseModel):
     """Endpoint autómata — necesita tipo, la hora la pone el sistema. El client_id va en la URL."""
     tipo: str
+
+
+class EntradaSalidaDashboard(BaseModel):
+    """Endpoint dashboard — client_id va en el body junto al tipo."""
+    client_id: str
+    tipo: str
+
 
 class EntradaSalidaSchema(BaseModel):
     id: int
