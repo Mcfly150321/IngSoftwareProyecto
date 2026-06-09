@@ -461,6 +461,11 @@ function initParqueoForm() {
 }
 
 
+/** hola a todos */
+/**puta madre */
+
+
+
 
 
 /** seccion de add empleado */
@@ -503,9 +508,12 @@ function initEmpleadoForm() {
                 user: data.user,
                 password: data.password
             };
+//comentando algo para actualizaarajnk
+
+//aqui vamos a insertar comentarioa para que supeustamente detecte cambiosclecl
 
             try {
-                const res = await fetch(`${API_URL}/newemploy`, {
+                const res = await fetch(`${API_URL}/empleados/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(newEmpleado)
@@ -1238,4 +1246,3 @@ async function executeRecharge(btn, monto) {
         }
     });
 }
-// PRUEBA DE ESCRITURA DIRECTA
