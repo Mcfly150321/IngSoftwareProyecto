@@ -1238,3 +1238,4 @@ async function executeRecharge(btn, monto) {
         }
     });
 }
+// PRUEBA DE ESCRITURA DIRECTA
