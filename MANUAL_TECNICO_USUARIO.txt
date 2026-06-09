@@ -1,0 +1,211 @@
+MANUAL TÉCNICO Y DE USUARIO
+===========================
+
+1. PROPÓSITO
+-----------
+Este documento describe el sistema de gestión de parqueos desarrollado en este proyecto. Incluye:
+- Manual técnico: arquitectura, rutas, dependencias y estructura del código.
+- Manual de usuario: cómo usar la aplicación desde el navegador.
+
+
+2. ESTRUCTURA DEL PROYECTO
+-------------------------
+Raíz:
+- `index.html`: pantalla de login.
+- `dashboard.html`: panel principal después del login.
+- `README.md`: descripción general del proyecto.
+- `requirements.txt`: dependencias Python.
+- `MANUAL_TECNICO_USUARIO.txt`: este documento.
+- `vercel.json`: configuración opcional de despliegue.
+
+Carpeta `api/`:
+- `main.py`: aplicación FastAPI principal, rutas de página y API.
+- `database.py`: lógica de base de datos y sesión.
+- `models.py`: modelos SQLAlchemy.
+- `schemas.py`: esquemas Pydantic.
+- `idticket.py`, `qr.py`, `imagenticket.py`, `seqcode.py`, `cloudinarylogic.py`: utilidades para generar tickets, códigos y subir imágenes.
+- `registro.html`: plantilla de registro público (si se usa).
+
+Carpeta `css/`:
+- `style.css`: estilos para `dashboard.html`.
+- `stylelogin.css`: estilos para `index.html`.
+
+Carpeta `js/`:
+- `applogin.js`: manejo del formulario de login.
+- `app.js`: lógica del dashboard, navegación, formularios y consumo de API.
+
+Carpeta `assets/`:
+- Iconos, logo, imágenes y recursos estáticos.
+
+
+3. EJECUCIÓN LOCAL
+------------------
+Instalar dependencias:
+```
+pip install -r requirements.txt
+```
+Ejecutar la aplicación:
+```
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+```
+Abrir en el navegador:
+```
+http://localhost:8000/
+```
+
+Variables opcionales:
+- `SECRET_KEY`: clave secreta para sesiones. Si no existe, usa `fallback-dev-secret`.
+
+
+4. ARQUITECTURA GENERAL
+-----------------------
+- FastAPI en `api/main.py`.
+- La aplicación monta archivos estáticos:
+  - `/css` → carpeta `css`
+  - `/js` → carpeta `js`
+  - `/assets` y `/img` → carpeta `assets`
+- Middleware:
+  - CORS abierto (`allow_origins=["*"]`).
+  - SessionMiddleware para manejar sesiones en el backend.
+- La base de datos se inicializa con `init_db()` al importar `api.main`.
+- Dependencia `get_db()` abre y cierra la sesión SQLAlchemy.
+- Rutas principales se registran con `app.include_router(router)`, `automata` y `utilidades`.
+
+
+5. ENDPOINTS CLAVE
+------------------
+Rutas de página:
+- `GET /` → `index.html` (login).
+- `GET /dashboard` → `dashboard.html` (requiere sesión activa).
+- `GET /registro` → `api/registro.html`.
+- `GET /logout` → cierra sesión y redirige a `/`.
+
+API principal (`/api`):
+- `GET /api/ping` → estado de salud.
+- `POST /api/login` → inicio de sesión con `username` y `password`.
+- `GET /api/stats` → estadísticas de dashboard.
+
+Parqueos:
+- `GET /api/parqueos/` → lista parqueos.
+- `POST /api/parqueos/` → crear parqueo.
+- `PUT /api/parqueos/{parqueo_id}` → actualizar parqueo.
+
+Tarifas:
+- `GET /api/tarifas/` → lista todas las tarifas.
+- `POST /api/tarifas/` → crear tarifa.
+- `PUT /api/tarifas/{tarifa_id}` → actualizar tarifa.
+
+Roles y empleados:
+- `GET /api/roles/` → lista roles.
+- `GET /api/empleados/` → lista empleados.
+- `POST /api/empleados/` → crear empleado.
+
+Clientes y tickets:
+- `GET /api/clients/` → lista clientes.
+- `POST /api/clients/` → crear cliente desde dashboard y generar ticket.
+- `GET /api/clients/{client_id}` → obtener cliente.
+
+Entradas / salidas:
+- `GET /api/entradas-salidas/` → historial de entradas y salidas.
+- `POST /api/entradas-salidas/` → registrar entrada o salida desde dashboard.
+
+Transacciones y cobros:
+- `GET /api/transacciones/` → historial de transacciones.
+- `GET /api/calcular-cobro/{client_id}` → calcular monto a cobrar.
+- `GET /api/balance/{client_id}` → ver saldo de cliente.
+- `POST /api/recargar/{client_id}` → recargar saldo.
+- `POST /api/cobrar/{client_id}` → cobrar saldo para salida.
+
+Rutas de autómata (`/api/automata`):
+- `POST /api/automata/client-request` → genera `seqcode` y `client_id`.
+- `POST /api/automata/client` → registra cliente con un `seqcode` válido.
+- `POST /api/automata/entrada-salida/{client_id}` → registra entrada o salida desde un kiosco/máquina.
+- `GET /api/automata/calcular-cobro/{client_id}` → cálculo de cobro para un ticket.
+- `POST /api/automata/cobrar/{client_id}` → cobra automáticamente si hay saldo disponible.
+- `POST /api/automata/transaccion/{client_id}` → registra recarga o cobro.
+
+Utilidades:
+- `GET /utilidades/ticket/{client_id}` → genera ticket en nube y devuelve URL.
+
+
+6. MANUAL DE USUARIO
+--------------------
+Pantalla de inicio de sesión:
+- Ingrese `Usuario` y `Contraseña`.
+- Use el botón "Iniciar Sesión".
+- Un login correcto redirige a `/dashboard`.
+
+Dashboard general:
+- El menú lateral muestra secciones según el rol del usuario.
+- Roles controlados en frontend:
+  - `Gerente`: acceso a todas las secciones.
+  - `Seguridad`: acceso a Dashboard, Obtener Ticket Nuevo y Pagos.
+  - `Maquina`: acceso a Registro y Pagos.
+- Si no está autorizado, el link no se muestra.
+
+Secciones principales:
+- `Dashboard`: muestra clientes activos y gráficos de ocupación.
+- `Agregar Parqueo`: crear nuevo parqueo indicando nombre y capacidad.
+- `Editar Parqueos`: modificar nombre o capacidad de parqueos existentes.
+- `Agregar Tarifa`: crear tarifa para un tipo de vehículo y una unidad de tiempo.
+- `Editar Tarifas`: modificar tarifas existentes.
+- `Agregar Empleado`: registrar nuevo empleado con rol, credenciales y datos básicos.
+- `Obtener Ticket Nuevo`: registra un cliente y crea ticket. El sistema envía ticket a la URL generada y puede abrir WhatsApp.
+- `Pagar Ticket`: al escanear o ingresar ticket, calcula el monto pendiente y permite confirmar pago.
+- `Recargar Saldo`: agrega saldo al cliente antes de pagar.
+- `Entrada Parqueo` / `Salida Parqueo`: registrar directamente entradas y salidas si se usa el dashboard.
+
+Notas de uso:
+- El número de teléfono se usa para generar el enlace de WhatsApp si se registra con ticket.
+- El ticket se genera con un código QR y se almacena en Cloudinary.
+- El sistema calcula el cobro según la tarifa del tipo de vehículo y el tiempo transcurrido desde la última entrada.
+- Para salida, primero debe existir un cobro válido dentro del período de cortesía permitido.
+
+
+7. NOTAS TÉCNICAS IMPORTANTES
+----------------------------
+- El acceso a `/dashboard` está protegido por sesión: si `session_user` no existe, redirige a `/`.
+- `login` guarda el usuario en la sesión y la información de rol en `sessionStorage`.
+- Las páginas estáticas se sirven directamente desde FastAPI.
+- El cálculo de clientes activos usa la última entrada/salida registrada por `client_id`.
+- La lógica de cobro toma todas las tarifas del tipo de vehículo y aplica ciclos desde la mayor unidad de tiempo.
+- El módulo usa Argon2 para verificar contraseñas almacenadas.
+- La carpeta `js/` maneja la lógica de UI, formularios y llamadas a la API.
+- El frontend usa `Chart.js` para gráficos y controla visibilidad de secciones según rol.
+
+Mejoras recomendadas:
+- Limitar CORS en producción en lugar de `allow_origins=["*"]`.
+- Usar un evento `startup` para inicializar la base de datos en lugar de `init_db()` en la importación.
+- Agregar `db.rollback()` en bloques `except` alrededor de `commit()`.
+- Validar mejor los datos en frontend y backend para evitar envíos incompletos.
+
+
+8. DEPENDENCIAS PRINCIPALES
+---------------------------
+- fastapi
+- uvicorn
+- sqlalchemy
+- pydantic
+- psycopg2-binary
+- argon2-cffi
+- aiofiles
+- pillow
+- segno
+- cloudinary
+- google-auth / google-api-python-client / gspread (si se usan integraciones con Google)
+
+
+9. ARCHIVOS CLAVE
+-----------------
+- `api/main.py`: definición de app, rutas y APIs.
+- `api/models.py`: estructuras de datos de la base de datos.
+- `api/schemas.py`: validación de solicitudes y respuestas.
+- `js/applogin.js`: inicio de sesión.
+- `js/app.js`: lógica del dashboard y consumos de API.
+- `dashboard.html`: interfaz principal del usuario.
+- `index.html`: pantalla de login.
+
+
+FIN DEL DOCUMENTO
+-----------------
+Este manual describe el estado actual del proyecto. Actualízalo cuando se agreguen nuevas rutas, funciones o cambios en la interfaz.
