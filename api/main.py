@@ -2,7 +2,7 @@ import os
 import datetime
 import urllib.parse
 
-from fastapi import FastAPI, Depends, HTTPException, Request, APIRouter
+from fastapi import FastAPI, Depends, HTTPException, Request, APIRouter, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -299,27 +299,41 @@ def list_empleados(db: Session = Depends(get_db)):
 
 
 @router.post("/empleados/", response_model=schemas.EmpleadoSchema)
-def create_empleado(empleado: schemas.EmpleadoCreate, db: Session = Depends(get_db)):
-    # Verificar unicidad de CUI y user
-    if db.query(models.Empleado).filter(models.Empleado.cui == empleado.cui).first():
+def create_empleado(empleado_data: dict = Body(...), db: Session = Depends(get_db)):
+    nombres = empleado_data.get("nombres")
+    apellidos = empleado_data.get("apellidos")
+    cui = empleado_data.get("cui")
+    edad = empleado_data.get("edad")
+    role_name = empleado_data.get("rol")
+    user = empleado_data.get("user")
+    passwd = empleado_data.get("passwd") or empleado_data.get("password")
+
+    if not all([nombres, apellidos, cui, edad, role_name, user, passwd]):
+        raise HTTPException(status_code=400, detail="Faltan datos obligatorios para crear el empleado")
+
+    if db.query(models.Empleado).filter(models.Empleado.cui == cui).first():
         raise HTTPException(status_code=400, detail="El CUI ya existe en el sistema")
-    if db.query(models.Credential).filter(models.Credential.user == empleado.user).first():
+    if db.query(models.Credential).filter(models.Credential.user == user).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe en el sistema")
 
+    role = db.query(models.Rol).filter(models.Rol.rol == role_name).first()
+    if not role:
+        raise HTTPException(status_code=400, detail="Rol no válido")
+
     db_emp = models.Empleado(
-        nombres=empleado.nombres,
-        apellidos=empleado.apellidos,
-        cui=empleado.cui,
-        edad=empleado.edad,
-        rol_id=empleado.rol_id,
+        nombres=nombres,
+        apellidos=apellidos,
+        cui=cui,
+        edad=int(edad),
+        rol_id=role.id,
     )
     db.add(db_emp)
     db.flush()
 
     cred = models.Credential(
         empleado_id=db_emp.id,
-        user=empleado.user,
-        passwd=ph.hash(empleado.passwd),
+        user=user,
+        passwd=ph.hash(passwd),
     )
     db.add(cred)
     db.commit()
