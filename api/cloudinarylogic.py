@@ -37,7 +37,7 @@ def subir_pdf(file_path):
     _init_cloudinary()
     upload_result = cloudinary.uploader.upload(
         file_path,
-        resource_type="raw",
+        resource_type="auto",
         folder="parqueo_pdfs",
         public_id=f"pdf_{uuid.uuid4().hex}",
         unique_filename=True,

@@ -83,26 +83,26 @@ def generar_pdf_historial_tickets(clients, desde=None, hasta=None):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Historial de Tickets", ln=True, align="C")
+    pdf.cell(0, 10, _safe_pdf_text("Historial de Tickets"), ln=True, align="C")
 
     pdf.set_font("Arial", "", 11)
     if desde or hasta:
-        range_text = f"Fecha: {desde or 'inicio'} → {hasta or 'hoy'}"
-        pdf.cell(0, 8, range_text, ln=True)
+        range_text = f"Fecha: {desde or 'inicio'} - {hasta or 'hoy'}"
+        pdf.cell(0, 8, _safe_pdf_text(range_text), ln=True)
     pdf.ln(4)
 
     if not clients:
-        pdf.cell(0, 7, "No hay clientes para el rango seleccionado.", ln=True)
+        pdf.cell(0, 7, _safe_pdf_text("No hay clientes para el rango seleccionado."), ln=True)
     else:
         for client in clients:
             title = f"{client.get('nombres', '')} {client.get('apellidos', '')}"
             pdf.set_font("Arial", "B", 12)
-            pdf.multi_cell(0, 7, title)
+            pdf.multi_cell(0, 7, _safe_pdf_text(title))
             pdf.set_font("Arial", "", 11)
-            pdf.cell(0, 6, f"ID ticket: {client.get('client_id', '')}", ln=True)
-            pdf.cell(0, 6, f"Placa: {client.get('placa', '')}  ·  DPI: {client.get('dpi', '')}", ln=True)
+            pdf.cell(0, 6, _safe_pdf_text(f"ID ticket: {client.get('client_id', '')}"), ln=True)
+            pdf.cell(0, 6, _safe_pdf_text(f"Placa: {client.get('placa', '')}  ·  DPI: {client.get('dpi', '')}"), ln=True)
             numero = client.get('numero') or 'N/A'
-            pdf.cell(0, 6, f"Número: {numero}", ln=True)
+            pdf.cell(0, 6, _safe_pdf_text(f"Número: {numero}"), ln=True)
             pdf.ln(4)
 
     output_path = os.path.join(TMP_PDFS, f"historial_tickets_{uuid.uuid4().hex}.pdf")
@@ -110,32 +110,49 @@ def generar_pdf_historial_tickets(clients, desde=None, hasta=None):
     return output_path
 
 
+def _safe_pdf_text(value):
+    if value is None:
+        return ''
+    text = str(value)
+    text = text.replace('—', '-')
+    text = text.replace('–', '-')
+    text = text.replace('“', '"')
+    text = text.replace('”', '"')
+    text = text.replace('‘', "'")
+    text = text.replace('’', "'")
+    try:
+        return text.encode('latin-1', 'replace').decode('latin-1')
+    except Exception:
+        return text.encode('latin-1', 'ignore').decode('latin-1')
+
+
 def generar_pdf_transacciones(client_name, client_id, transacciones, desde=None, hasta=None):
     pdf = FPDF(unit="mm", format="A4")
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Historial de Transacciones", ln=True, align="C")
+    pdf.cell(0, 10, _safe_pdf_text("Historial de Transacciones"), ln=True, align="C")
 
     pdf.set_font("Arial", "", 11)
-    pdf.cell(0, 7, f"Cliente: {client_name}", ln=True)
-    pdf.cell(0, 7, f"Ticket: {client_id}", ln=True)
+    pdf.cell(0, 7, _safe_pdf_text(f"Cliente: {client_name}"), ln=True)
+    pdf.cell(0, 7, _safe_pdf_text(f"Ticket: {client_id}"), ln=True)
     if desde or hasta:
-        range_text = f"Rango: {desde or 'inicio'} → {hasta or 'hoy'}"
-        pdf.cell(0, 7, range_text, ln=True)
+        range_text = f"Rango: {desde or 'inicio'} - {hasta or 'hoy'}"
+        pdf.cell(0, 7, _safe_pdf_text(range_text), ln=True)
     pdf.ln(4)
 
     if not transacciones:
-        pdf.cell(0, 7, "No hay transacciones para el rango seleccionado.", ln=True)
+        pdf.cell(0, 7, _safe_pdf_text("No hay transacciones para el rango seleccionado."), ln=True)
     else:
         for tx in transacciones:
             fecha = tx.get('fecha_hora', '')
             tipo = tx.get('tipo_transaccion', '')
             monto = tx.get('monto', 0)
             pdf.set_font("Arial", "B", 11)
-            pdf.cell(0, 7, f"{fecha} — {tipo.upper()}", ln=True)
+            pdf.cell(0, 7, _safe_pdf_text(f"{fecha} - {tipo.upper()}"), ln=True)
             pdf.set_font("Arial", "", 11)
-            pdf.cell(0, 7, f"Monto: Q{monto:.2f}" if isinstance(monto, (int, float)) else f"Monto: Q{monto}", ln=True)
+            monto_text = f"Monto: Q{monto:.2f}" if isinstance(monto, (int, float)) else f"Monto: Q{monto}"
+            pdf.cell(0, 7, _safe_pdf_text(monto_text), ln=True)
             pdf.ln(2)
 
     output_path = os.path.join(TMP_PDFS, f"transacciones_{uuid.uuid4().hex}.pdf")
