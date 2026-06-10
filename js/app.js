@@ -512,7 +512,7 @@ function initEmpleadoForm() {
 //aqui vamos a insertar comentarioa para que supeustamente detecte cambiosclecl
 
             try {
-                const res = await fetch(`${API_URL}/empleados/`, {
+                const res = await fetch(`${API_URL}/empleados`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(newEmpleado)
