@@ -502,18 +502,17 @@ function initEmpleadoForm() {
                 nombres: data.nombres,
                 apellidos: data.apellidos,
                 cui: data.cui,
-                numero: data.numero,
                 edad: parseInt(data.edad),
                 rol: data.rol,
                 user: data.user,
-                password: data.password
+                passwd: data.password
             };
 //comentando algo para actualizaarajnk
 
 //aqui vamos a insertar comentarioa para que supeustamente detecte cambiosclecl
 
             try {
-                const res = await fetch(`${API_URL}/empleados`, {
+                const res = await fetch(`${API_URL}/empleados/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(newEmpleado)

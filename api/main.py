@@ -319,7 +319,7 @@ def create_empleado(empleado: schemas.EmpleadoCreate, db: Session = Depends(get_
     cred = models.Credential(
         empleado_id=db_emp.id,
         user=empleado.user,
-        passwd=ph.hash(empleado.password),
+        passwd=ph.hash(empleado.passwd),
     )
     db.add(cred)
     db.commit()
