@@ -168,11 +168,29 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function parseClientDate(clientId) {
+    const id = String(clientId || '');
+    const prefix = id.slice(0, 8);
+    return /^\d{8}$/.test(prefix) ? prefix : null;
+}
+
+function isClientDateInRange(client, desde, hasta) {
+    const clientDate = parseClientDate(client.client_id);
+    if (!clientDate) return true;
+
+    if (desde && clientDate < desde.replace(/-/g, '')) return false;
+    if (hasta && clientDate > hasta.replace(/-/g, '')) return false;
+    return true;
+}
+
 async function loadHistorialTickets() {
     const container = document.getElementById('historialTicketsContainer');
     const message = document.getElementById('historialTicketsMessage');
     const empty = document.getElementById('historialTicketsEmpty');
     const filterButton = document.getElementById('historialFilterButton');
+    const pdfButton = document.getElementById('historialPdfButton');
+    const desdeInput = document.getElementById('historialDesde');
+    const hastaInput = document.getElementById('historialHasta');
 
     if (!container) return;
     message.textContent = '';
@@ -180,13 +198,10 @@ async function loadHistorialTickets() {
     container.innerHTML = '<div style="grid-column: 1 / -1; padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; color: #64748b;">Cargando clientes...</div>';
 
     if (filterButton) {
-        filterButton.onclick = () => {
-            if (currentHistorialClientId) {
-                openClientTransactions(currentHistorialClientId, currentHistorialClientName);
-            } else {
-                message.textContent = 'Seleccione un cliente y presione Historial para aplicar el filtro.';
-            }
-        };
+        filterButton.onclick = () => loadHistorialTickets();
+    }
+    if (pdfButton) {
+        pdfButton.onclick = generateHistorialPdf;
     }
 
     try {
@@ -200,8 +215,20 @@ async function loadHistorialTickets() {
             return;
         }
 
-        clients.sort((a, b) => a.id - b.id);
-        container.innerHTML = clients.map(client => {
+        const desdeValue = desdeInput?.value || '';
+        const hastaValue = hastaInput?.value || '';
+        const filteredClients = clients
+            .filter(client => isClientDateInRange(client, desdeValue, hastaValue))
+            .sort((a, b) => a.id - b.id);
+
+        if (filteredClients.length === 0) {
+            container.innerHTML = '';
+            empty.style.display = 'block';
+            message.textContent = 'No hay clientes en el rango seleccionado.';
+            return;
+        }
+
+        container.innerHTML = filteredClients.map(client => {
             const clientName = `${escapeHtml(client.nombres)} ${escapeHtml(client.apellidos)}`;
             return `
                 <div class="card" style="padding:1.2rem; display:flex; flex-direction:column; gap:0.75rem;">
@@ -239,17 +266,58 @@ function formatDateTime(dateString) {
     });
 }
 
+async function generateHistorialPdf() {
+    const desde = document.getElementById('historialDesde')?.value || '';
+    const hasta = document.getElementById('historialHasta')?.value || '';
+    let url = `${API_URL}/historial-clients/pdf`;
+    const params = new URLSearchParams();
+    if (desde) params.set('from', desde);
+    if (hasta) params.set('to', hasta);
+    if ([...params].length) url += `?${params.toString()}`;
+
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error generando PDF');
+        window.open(data.url, '_blank');
+    } catch (err) {
+        alert(`No se pudo generar el PDF: ${err.message}`);
+    }
+}
+
+async function generateClientTransactionsPdf() {
+    if (!currentHistorialClientId) return;
+    const desde = document.getElementById('transactionDesde')?.value || '';
+    const hasta = document.getElementById('transactionHasta')?.value || '';
+    let url = `${API_URL}/historial-transacciones/${encodeURIComponent(currentHistorialClientId)}/pdf`;
+    const params = new URLSearchParams();
+    if (desde) params.set('from', desde);
+    if (hasta) params.set('to', hasta);
+    if ([...params].length) url += `?${params.toString()}`;
+
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error generando PDF');
+        window.open(data.url, '_blank');
+    } catch (err) {
+        alert(`No se pudo generar el PDF: ${err.message}`);
+    }
+}
+
 async function openClientTransactions(clientId, clientName) {
     currentHistorialClientId = clientId;
     currentHistorialClientName = clientName;
 
-    const desde = document.getElementById('historialDesde');
-    const hasta = document.getElementById('historialHasta');
     const subtitle = document.getElementById('transactionHistorySubtitle');
     const rangeLabel = document.getElementById('transactionHistoryRange');
     const list = document.getElementById('transactionHistoryList');
     const empty = document.getElementById('transactionHistoryEmpty');
     const overlay = document.getElementById('transactionHistoryOverlay');
+    const desde = document.getElementById('transactionDesde');
+    const hasta = document.getElementById('transactionHasta');
+    const filterButton = document.getElementById('transactionFilterButton');
+    const pdfButton = document.getElementById('transactionPdfButton');
 
     if (!subtitle || !rangeLabel || !list || !empty || !overlay) return;
 
@@ -257,6 +325,13 @@ async function openClientTransactions(clientId, clientName) {
     const fromValue = desde?.value || '';
     const toValue = hasta?.value || '';
     rangeLabel.textContent = fromValue || toValue ? `Rango: ${fromValue || 'inicio'} → ${toValue || 'hoy'}` : 'Mostrando historial completo';
+
+    if (filterButton) {
+        filterButton.onclick = () => openClientTransactions(clientId, clientName);
+    }
+    if (pdfButton) {
+        pdfButton.onclick = generateClientTransactionsPdf;
+    }
 
     list.innerHTML = '<div style="padding:20px; color:#64748b;">Cargando transacciones...</div>';
     empty.style.display = 'none';

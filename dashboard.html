@@ -401,7 +401,7 @@
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                         <div>
                             <h2>📁 Historial de Tickets</h2>
-                            <p style="color:#64748b; margin: 4px 0 0;">Consulta clientes y revisa transacciones por rango de fecha.</p>
+                            <p style="color:#64748b; margin: 4px 0 0;">Filtra clientes por fecha de ticket y revisa transacciones por cliente.</p>
                         </div>
                         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                             <label style="display:flex; flex-direction:column; font-size:14px; color:#334155;">
@@ -413,6 +413,7 @@
                                 <input type="date" id="historialHasta" style="margin-top:6px; padding:8px; border-radius:10px; border:1px solid #cbd5e1; min-width:170px;">
                             </label>
                             <button id="historialFilterButton" class="btn-primary" style="min-width:160px; height:42px;">Aplicar filtro</button>
+                            <button id="historialPdfButton" class="btn-primary" style="min-width:160px; height:42px; background:#2563eb;">PDF Tickets</button>
                         </div>
                     </div>
                 </div>
@@ -426,8 +427,20 @@
                         <button onclick="closeTransactionHistory()" style="position:absolute; top:18px; right:18px; background:#ef4444; color:white; border:none; border-radius:12px; padding:10px 14px; cursor:pointer;">Cerrar</button>
                         <h2 style="margin-top:0;">Historial de transacciones</h2>
                         <p id="transactionHistorySubtitle" style="color:#475569; margin: 0.5rem 0 0;"></p>
+                        <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin-top:16px;">
+                            <label style="display:flex; flex-direction:column; font-size:14px; color:#334155;">
+                                Desde
+                                <input type="date" id="transactionDesde" style="margin-top:6px; padding:8px; border-radius:10px; border:1px solid #cbd5e1; min-width:150px;">
+                            </label>
+                            <label style="display:flex; flex-direction:column; font-size:14px; color:#334155;">
+                                Hasta
+                                <input type="date" id="transactionHasta" style="margin-top:6px; padding:8px; border-radius:10px; border:1px solid #cbd5e1; min-width:150px;">
+                            </label>
+                            <button id="transactionFilterButton" class="btn-primary" style="min-width:160px; height:42px;">Filtrar transacciones</button>
+                            <button id="transactionPdfButton" class="btn-primary" style="min-width:160px; height:42px; background:#2563eb;">PDF transacciones</button>
+                        </div>
                         <div id="transactionHistoryRange" style="color:#475569; margin: 0.5rem 0 1rem;"></div>
-                        <div id="transactionHistoryList" style="display:grid; gap:12px; max-height:65vh; overflow:auto;"></div>
+                        <div id="transactionHistoryList" style="display:grid; gap:12px; max-height:55vh; overflow:auto;"></div>
                         <div id="transactionHistoryEmpty" style="margin-top:1rem; color:#475569; display:none;">No hay transacciones para este cliente en el rango seleccionado.</div>
                     </div>
                 </div>

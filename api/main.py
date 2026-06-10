@@ -19,7 +19,8 @@ from .seqcode import generar_codigo_verificacion
 from .idticket import generate_idticket
 from .qr import generar_qr
 from .imagenticket import generar_imgticket
-from .cloudinarylogic import subir_imagen
+from .cloudinarylogic import subir_imagen, subir_pdf
+from .pdf import generar_pdf_historial_tickets, generar_pdf_transacciones
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -777,6 +778,102 @@ def list_transacciones(
         query = query.filter(models.Transaccion.fecha_hora < to_dt)
 
     return query.order_by(models.Transaccion.fecha_hora.desc()).all()
+
+
+def _normalize_date_string(date_text: Optional[str]) -> Optional[str]:
+    if not date_text:
+        return None
+    normalized = date_text.replace('-', '')
+    if len(normalized) != 8 or not normalized.isdigit():
+        raise HTTPException(status_code=400, detail="Formato de fecha inválido. Use YYYY-MM-DD")
+    return normalized
+
+
+def _filter_clients_by_ticket_date(clients, from_date: Optional[str], to_date: Optional[str]):
+    from_val = _normalize_date_string(from_date)
+    to_val = _normalize_date_string(to_date)
+    if from_val and to_val and from_val > to_val:
+        raise HTTPException(status_code=400, detail="El valor 'from' no puede ser mayor que 'to'.")
+
+    def client_matches(client):
+        ticket_date = getattr(client, 'client_id', '')[:8]
+        if not ticket_date.isdigit() or len(ticket_date) != 8:
+            return True
+        if from_val and ticket_date < from_val:
+            return False
+        if to_val and ticket_date > to_val:
+            return False
+        return True
+
+    return [client for client in clients if client_matches(client)]
+
+
+@router.get("/historial-clients/pdf")
+def generate_historial_clients_pdf(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    db: Session = Depends(get_db)
+):
+    clients = db.query(models.Client).order_by(models.Client.id.asc()).all()
+    filtered_clients = _filter_clients_by_ticket_date(clients, from_date, to_date)
+
+    client_dicts = [
+        {
+            "nombres": client.nombres,
+            "apellidos": client.apellidos,
+            "client_id": client.client_id,
+            "placa": client.placa,
+            "dpi": client.dpi,
+            "numero": client.numero,
+        }
+        for client in filtered_clients
+    ]
+
+    pdf_path = generar_pdf_historial_tickets(client_dicts, from_date, to_date)
+    url = subir_pdf(pdf_path)
+    return {"url": url}
+
+
+@router.get("/historial-transacciones/{client_id}/pdf")
+def generate_client_transactions_pdf(
+    client_id: str,
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    db: Session = Depends(get_db)
+):
+    client = db.query(models.Client).filter(models.Client.client_id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    query = db.query(models.Transaccion).filter(models.Transaccion.client_id == client_id)
+    if from_date:
+        try:
+            from_dt = datetime.datetime.fromisoformat(from_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha 'from' inválido. Use YYYY-MM-DD")
+        query = query.filter(models.Transaccion.fecha_hora >= from_dt)
+
+    if to_date:
+        try:
+            to_dt = datetime.datetime.fromisoformat(to_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha 'to' inválido. Use YYYY-MM-DD")
+        to_dt = to_dt + datetime.timedelta(days=1)
+        query = query.filter(models.Transaccion.fecha_hora < to_dt)
+
+    transactions = query.order_by(models.Transaccion.fecha_hora.desc()).all()
+    trans_dicts = [
+        {
+            "fecha_hora": tx.fecha_hora.isoformat(sep=' '),
+            "tipo_transaccion": tx.tipo_transaccion,
+            "monto": tx.monto,
+        }
+        for tx in transactions
+    ]
+
+    pdf_path = generar_pdf_transacciones(f"{client.nombres} {client.apellidos}", client_id, trans_dicts, from_date, to_date)
+    url = subir_pdf(pdf_path)
+    return {"url": url}
 
 
 @router.get("/calcular-cobro/{client_id}")
