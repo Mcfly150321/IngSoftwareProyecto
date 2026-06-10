@@ -27,7 +27,8 @@ def subir_imagen(file_path):
         resource_type="auto",
         folder="parqueo_images",
         use_filename=True,
-        unique_filename=True
+        unique_filename=True,
+        access_mode="public"
     )
     return upload_result["secure_url"]
 
@@ -39,7 +40,7 @@ def subir_pdf(file_path):
         resource_type="raw",
         folder="parqueo_pdfs",
         public_id=f"pdf_{uuid.uuid4().hex}",
-        use_filename=True,
-        unique_filename=True
+        unique_filename=True,
+        access_mode="public"
     )
     return upload_result["secure_url"]

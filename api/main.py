@@ -829,11 +829,12 @@ def generate_historial_clients_pdf(
         for client in filtered_clients
     ]
 
-    pdf_path = generar_pdf_historial_tickets(client_dicts, from_date, to_date)
     try:
+        pdf_path = generar_pdf_historial_tickets(client_dicts, from_date, to_date)
         url = subir_pdf(pdf_path)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al subir PDF de historial de clientes: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al generar/subir PDF de historial de clientes: {e}")
+
     return {"url": url}
 
 
@@ -874,11 +875,12 @@ def generate_client_transactions_pdf(
         for tx in transactions
     ]
 
-    pdf_path = generar_pdf_transacciones(f"{client.nombres} {client.apellidos}", client_id, trans_dicts, from_date, to_date)
     try:
+        pdf_path = generar_pdf_transacciones(f"{client.nombres} {client.apellidos}", client_id, trans_dicts, from_date, to_date)
         url = subir_pdf(pdf_path)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al subir PDF de historial de transacciones: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al generar/subir PDF de historial de transacciones: {e}")
+
     return {"url": url}
 
 
