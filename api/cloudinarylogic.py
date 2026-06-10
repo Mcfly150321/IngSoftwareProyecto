@@ -9,6 +9,7 @@ def _init_cloudinary():
     cloud_name = os.getenv("CloudName_Cloudinary") or os.getenv("CLOUDINARY_CLOUD_NAME")
     api_key = os.getenv("ApiKey_Cloudinary") or os.getenv("CLOUDINARY_API_KEY")
     api_secret = os.getenv("ApiSecret_Cloudinary") or os.getenv("ApiSectet_Cloudinary") or os.getenv("CLOUDINARY_API_SECRET")
+    
     if not cloud_name or not api_key or not api_secret:
         raise RuntimeError("Cloudinary credentials missing: configure CloudName_Cloudinary, ApiKey_Cloudinary and ApiSecret_Cloudinary")
 
@@ -40,7 +41,7 @@ def subir_pdf(file_path):
         resource_type="auto",
         folder="parqueo_pdfs",
         public_id=f"pdf_{uuid.uuid4().hex}",
-        unique_filename=True,
+        format="pdf",  # <--- Forzamos a Cloudinary a que entregue el archivo con extensión .pdf pública
         access_mode="public"
     )
     return upload_result["secure_url"]
