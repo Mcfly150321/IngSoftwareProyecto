@@ -3,6 +3,8 @@ const API_URL_SCANNER = "/api";
 let html5QrCode_Asistencia = null;
 let isProcessing_Asistencia = false;
 let currentScanId = null;
+let currentHistorialClientId = null;
+let currentHistorialClientName = null;
 
 // Variables globales para los gráficos de Chart.js
 let chartDiarioInstance = null;
@@ -85,6 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'empleadosadd': 'Agregar Empleado',
                 'editarparqueos': 'Editar Parqueos',
                 'editartarifas': 'Editar Tarifas',
+                'historialtickets': 'Historial de Tickets',
                 'inscripcion': 'Nuevo Ticket / Registro',
                 'pagos': 'Control de Pagos / Salida',
                 'recarga': 'Recargar Saldo de Ticket',
@@ -98,6 +101,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (target === 'pagos') updatePagosUI();
             if (target === 'editarparqueos') loadParqueosEdit();
             if (target === 'editartarifas') loadTarifasEdit();
+            if (target === 'historialtickets') loadHistorialTickets();
         });
     });
 
@@ -152,6 +156,140 @@ async function loadDropdowns() {
         }
     } catch (err) {
         console.error("Error cargando dropdowns:", err);
+    }
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+async function loadHistorialTickets() {
+    const container = document.getElementById('historialTicketsContainer');
+    const message = document.getElementById('historialTicketsMessage');
+    const empty = document.getElementById('historialTicketsEmpty');
+    const filterButton = document.getElementById('historialFilterButton');
+
+    if (!container) return;
+    message.textContent = '';
+    empty.style.display = 'none';
+    container.innerHTML = '<div style="grid-column: 1 / -1; padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; color: #64748b;">Cargando clientes...</div>';
+
+    if (filterButton) {
+        filterButton.onclick = () => {
+            if (currentHistorialClientId) {
+                openClientTransactions(currentHistorialClientId, currentHistorialClientName);
+            } else {
+                message.textContent = 'Seleccione un cliente y presione Historial para aplicar el filtro.';
+            }
+        };
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/clients/`);
+        const clients = await res.json();
+        if (!res.ok) throw new Error(clients.detail || 'Error cargando clientes');
+
+        if (!Array.isArray(clients) || clients.length === 0) {
+            container.innerHTML = '';
+            empty.style.display = 'block';
+            return;
+        }
+
+        clients.sort((a, b) => a.id - b.id);
+        container.innerHTML = clients.map(client => {
+            const clientName = `${escapeHtml(client.nombres)} ${escapeHtml(client.apellidos)}`;
+            return `
+                <div class="card" style="padding:1.2rem; display:flex; flex-direction:column; gap:0.75rem;">
+                    <div style="font-size:1.1rem; font-weight:700; color:#0f172a;">${clientName}</div>
+                    <div style="color:#475569; font-size:14px;">ID ticket: <span style="font-weight:700; color:#0f172a;">${escapeHtml(client.client_id)}</span></div>
+                    <div style="color:#475569; font-size:13px; line-height:1.5;">Placa: <strong>${escapeHtml(client.placa)}</strong> · DPI: <strong>${escapeHtml(client.dpi)}</strong> · Número: <strong>${client.numero || 'N/A'}</strong></div>
+                    <button type="button" class="btn-primary client-history-btn" data-client-id="${escapeHtml(client.client_id)}" data-client-name="${clientName}" style="width:max-content; padding:0.9rem 1rem;">Historial</button>
+                </div>`;
+        }).join('');
+
+        container.querySelectorAll('.client-history-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                openClientTransactions(btn.dataset.clientId, btn.dataset.clientName);
+            });
+        });
+    } catch (err) {
+        container.innerHTML = '';
+        message.textContent = `❌ ${err.message}`;
+    }
+}
+
+function closeTransactionHistory() {
+    const overlay = document.getElementById('transactionHistoryOverlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+function formatDateTime(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleString('es-GT', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+async function openClientTransactions(clientId, clientName) {
+    currentHistorialClientId = clientId;
+    currentHistorialClientName = clientName;
+
+    const desde = document.getElementById('historialDesde');
+    const hasta = document.getElementById('historialHasta');
+    const subtitle = document.getElementById('transactionHistorySubtitle');
+    const rangeLabel = document.getElementById('transactionHistoryRange');
+    const list = document.getElementById('transactionHistoryList');
+    const empty = document.getElementById('transactionHistoryEmpty');
+    const overlay = document.getElementById('transactionHistoryOverlay');
+
+    if (!subtitle || !rangeLabel || !list || !empty || !overlay) return;
+
+    subtitle.textContent = `${clientName} · Ticket ${clientId}`;
+    const fromValue = desde?.value || '';
+    const toValue = hasta?.value || '';
+    rangeLabel.textContent = fromValue || toValue ? `Rango: ${fromValue || 'inicio'} → ${toValue || 'hoy'}` : 'Mostrando historial completo';
+
+    list.innerHTML = '<div style="padding:20px; color:#64748b;">Cargando transacciones...</div>';
+    empty.style.display = 'none';
+    overlay.style.display = 'block';
+
+    try {
+        let url = `${API_URL}/transacciones/?client_id=${encodeURIComponent(clientId)}`;
+        if (fromValue) url += `&from=${encodeURIComponent(fromValue)}`;
+        if (toValue) url += `&to=${encodeURIComponent(toValue)}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error cargando transacciones');
+
+        if (!Array.isArray(data) || data.length === 0) {
+            list.innerHTML = '';
+            empty.style.display = 'block';
+            return;
+        }
+
+        list.innerHTML = data.map(tx => `
+            <div style="padding: 14px 16px; border-radius: 12px; border: 1px solid #e2e8f0; background: #f8fafc;">
+                <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; align-items:center;">
+                    <span style="font-size:14px; color:#475569;">${formatDateTime(tx.fecha_hora)}</span>
+                    <span style="font-weight:700; color:${tx.tipo_transaccion === 'cobro' ? '#dc2626' : '#047857'};">${tx.tipo_transaccion.toUpperCase()}</span>
+                </div>
+                <div style="margin-top:8px; color:#0f172a; font-size:16px; font-weight:700;">Q${Number(tx.monto).toFixed(2)}</div>
+            </div>
+        `).join('');
+    } catch (err) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        empty.textContent = `❌ ${err.message}`;
     }
 }
 

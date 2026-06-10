@@ -2,7 +2,7 @@ import os
 import datetime
 import urllib.parse
 
-from fastapi import FastAPI, Depends, HTTPException, Request, APIRouter, Body
+from fastapi import FastAPI, Depends, HTTPException, Request, APIRouter, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 from . import database, schemas, models
 from .database import SessionLocal, init_db
@@ -637,7 +637,7 @@ def create_transaccion(client_id: str, data: schemas.TransaccionCreate, db: Sess
 
 @router.get("/clients/", response_model=List[schemas.ClientSchema])
 def list_clients(db: Session = Depends(get_db)):
-    return db.query(models.Client).all()
+    return db.query(models.Client).order_by(models.Client.id.asc()).all()
 
 
 @router.post("/clients/")
@@ -751,13 +751,32 @@ def create_entrada_salida_dashboard(data: schemas.EntradaSalidaDashboard, db: Se
 # ═════════════════════════════════════════════════════════════════════════════
 
 @router.get("/transacciones/", response_model=List[schemas.TransaccionSchema])
-def list_transacciones(db: Session = Depends(get_db)):
-    return (
-        db.query(models.Transaccion)
-        .order_by(models.Transaccion.fecha_hora.desc())
-        .limit(200)
-        .all()
-    )
+def list_transacciones(
+    client_id: Optional[str] = None,
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Transaccion)
+    if client_id:
+        query = query.filter(models.Transaccion.client_id == client_id)
+
+    if from_date:
+        try:
+            from_dt = datetime.datetime.fromisoformat(from_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha 'from' inválido. Use YYYY-MM-DD")
+        query = query.filter(models.Transaccion.fecha_hora >= from_dt)
+
+    if to_date:
+        try:
+            to_dt = datetime.datetime.fromisoformat(to_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha 'to' inválido. Use YYYY-MM-DD")
+        to_dt = to_dt + datetime.timedelta(days=1)
+        query = query.filter(models.Transaccion.fecha_hora < to_dt)
+
+    return query.order_by(models.Transaccion.fecha_hora.desc()).all()
 
 
 @router.get("/calcular-cobro/{client_id}")
